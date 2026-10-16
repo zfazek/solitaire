@@ -1,0 +1,2 @@
+# solitaire
+Klondike Solitaire
