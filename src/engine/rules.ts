@@ -4,6 +4,24 @@ import { isRed } from './deck';
 /** Bridge-order suit assignment for the 4 foundation piles */
 export const FOUNDATION_SUITS: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
 
+/**
+ * Is `cards` a valid movable tableau sequence?
+ * All cards must be face-up and form a descending, alternating-color run.
+ */
+export function isMovableSequence(cards: Card[]): boolean {
+  if (cards.length === 0) return false;
+  for (let i = 0; i < cards.length; i++) {
+    if (!cards[i].faceUp) return false;
+    if (i > 0) {
+      const prev = cards[i - 1];
+      const cur = cards[i];
+      if (isRed(prev.suit) === isRed(cur.suit)) return false;
+      if (cur.rank !== prev.rank - 1) return false;
+    }
+  }
+  return true;
+}
+
 /** Can a card (or stack starting with `card`) be placed on top of a tableau pile? */
 export function canPlaceOnTableau(card: Card, targetPile: Card[]): boolean {
   if (targetPile.length === 0) {

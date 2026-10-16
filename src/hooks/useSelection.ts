@@ -8,7 +8,7 @@ export interface Selection {
 
 export function useSelection(
   onMove: (source: MoveSource, target: MoveTarget) => boolean,
-  onAutoMove: (source: MoveSource) => boolean,
+  onAutoMove: (source: MoveSource, cards?: Card[]) => boolean,
 ) {
   const [selected, setSelected] = useState<Selection | null>(null);
 
@@ -43,7 +43,7 @@ export function useSelection(
 
     // No selection, OR tapped a card in the same pile, OR move failed:
     // try auto-move to foundation, else select this card
-    const autoMoved = onAutoMove(source);
+    const autoMoved = onAutoMove(source, cards);
     if (autoMoved) {
       setSelected(null);
       return;
