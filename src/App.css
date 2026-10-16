@@ -1,0 +1,429 @@
+/* ============================================================
+   Reset & base
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --gap:          6px;
+  --board-pad:    8px;
+  --card-radius:  7px;
+  --toolbar-h:    44px;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* Card size is derived from screen width so 7 columns always fit */
+/* 7 cards + 6 gaps + 2*padding = 7w + 6*6 + 2*8 = 7w + 52 */
+/* So w = (100vw - 52) / 7  → set via inline calc */
+:root {
+  --card-w: calc((100vw - 52px) / 7);
+  --card-h: calc(var(--card-w) * 1.4);
+}
+
+body {
+  background: #145e2c;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  /* Block pull-to-refresh on Chrome Android */
+  overscroll-behavior: none;
+}
+
+/* ============================================================
+   App shell
+   ============================================================ */
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+/* ============================================================
+   Toolbar — two rows on mobile, one row on desktop
+   ============================================================ */
+.toolbar {
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+}
+
+.toolbar-center {
+  display: flex;
+  gap: 12px;
+  color: rgba(255,255,255,0.85);
+  font-size: 0.82rem;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.game-title {
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+}
+
+.stat {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Buttons */
+.btn {
+  padding: 5px 10px;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.btn:hover {
+  background: rgba(255,255,255,0.22);
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #2d9e52;
+  border-color: #2d9e52;
+}
+
+.btn-primary:hover {
+  background: #38bc63;
+  border-color: #38bc63;
+}
+
+.btn-active {
+  background: rgba(255,255,255,0.35);
+  border-color: rgba(255,255,255,0.6);
+}
+
+/* Draw mode toggle group */
+.draw-toggle {
+  display: flex;
+}
+
+.draw-toggle .btn:first-child {
+  border-radius: 6px 0 0 6px;
+  border-right: none;
+}
+
+.draw-toggle .btn:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+/* ============================================================
+   Board
+   ============================================================ */
+.board {
+  flex: 1;
+  padding: var(--board-pad);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  width: 100%;
+  /* Cap width on large screens */
+  max-width: min(100vw, 860px);
+  margin: 0 auto;
+}
+
+/* On large screens use fixed comfortable card size */
+@media (min-width: 640px) {
+  :root {
+    --card-w: 90px;
+    --card-h: 126px;
+  }
+  .board {
+    padding: 12px;
+    gap: 10px;
+  }
+  .toolbar {
+    padding: 0 16px;
+    height: 52px;
+    flex-wrap: nowrap;
+  }
+  .btn {
+    padding: 6px 14px;
+    font-size: 0.85rem;
+  }
+}
+
+/* ============================================================
+   Top row (stock/waste + foundations)
+   ============================================================ */
+.top-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gap);
+  justify-content: space-between;
+}
+
+.stock-waste {
+  display: flex;
+  gap: var(--gap);
+  flex-shrink: 0;
+}
+
+.foundations {
+  display: flex;
+  gap: var(--gap);
+  flex-wrap: nowrap;
+}
+
+/* ============================================================
+   Pile slot (shared base for all piles)
+   ============================================================ */
+.pile-slot {
+  width: var(--card-w);
+  min-height: var(--card-h);
+  border-radius: var(--card-radius);
+  border: 2px dashed rgba(255,255,255,0.25);
+  position: relative;
+  flex-shrink: 0;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+/* Foundation and stock/waste piles stay card-sized */
+.foundation-pile,
+.stock-pile,
+.waste-pile {
+  height: var(--card-h);
+}
+
+.pile-slot-active {
+  border-color: rgba(255,255,255,0.65);
+  background: rgba(255,255,255,0.06);
+}
+
+.pile-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(0.9rem, 3vw, 1.6rem);
+  color: rgba(255,255,255,0.28);
+  pointer-events: none;
+}
+
+/* ============================================================
+   Stock
+   ============================================================ */
+.stock-pile {
+  cursor: pointer;
+}
+
+.stock-pile:hover .card-back {
+  filter: brightness(1.1);
+}
+
+.stock-count {
+  position: absolute;
+  bottom: 3px;
+  right: 4px;
+  font-size: clamp(0.55rem, 1.5vw, 0.7rem);
+  color: rgba(255,255,255,0.7);
+  pointer-events: none;
+}
+
+/* ============================================================
+   Tableau
+   ============================================================ */
+.tableau {
+  display: flex;
+  gap: var(--gap);
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.tableau-column {
+  min-height: var(--card-h);
+  height: auto;
+  max-height: 78dvh;
+}
+
+/* ============================================================
+   Card base
+   ============================================================ */
+.card {
+  width: var(--card-w);
+  height: var(--card-h);
+  border-radius: var(--card-radius);
+  flex-shrink: 0;
+}
+
+/* Face-down card */
+.card-back {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      #1554a0 0 6px,
+      #1a6bc7 6px 12px
+    );
+  border: 2px solid #1148a5;
+  box-shadow: 1px 1px 3px rgba(0,0,0,0.4);
+}
+
+/* Face-up card */
+.card-face {
+  background: #fff;
+  border: 1px solid #c8c8c8;
+  box-shadow: 1px 2px 4px rgba(0,0,0,0.3);
+  cursor: grab;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.card-face:active {
+  cursor: grabbing;
+}
+
+.card-red {
+  color: #c0392b;
+}
+
+.card-black {
+  color: #1a1a1a;
+}
+
+/* Corner labels */
+.card-corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  gap: 1px;
+}
+
+.card-corner-top {
+  top: 3px;
+  left: 4px;
+}
+
+.card-corner-bottom {
+  bottom: 3px;
+  right: 4px;
+  transform: rotate(180deg);
+}
+
+.card-rank {
+  font-size: clamp(0.7rem, 2.5vw, 1.1rem);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.card-suit {
+  font-size: clamp(0.55rem, 1.8vw, 0.9rem);
+  line-height: 1;
+}
+
+/* Center pip */
+.card-center {
+  font-size: clamp(1.1rem, 4vw, 2.4rem);
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* Placeholder for dragged card position */
+.card-placeholder {
+  background: rgba(0,0,0,0.12);
+  border: 2px dashed rgba(255,255,255,0.2);
+  border-radius: var(--card-radius);
+  width: var(--card-w);
+  height: var(--card-h);
+}
+
+/* Selected card highlight */
+.card-selected {
+  outline: 3px solid #ffe234;
+  outline-offset: 0;
+  box-shadow: 0 0 10px rgba(255, 226, 52, 0.7);
+  z-index: 10;
+}
+
+/* ============================================================
+   Win overlay
+   ============================================================ */
+.win-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.3s ease;
+}
+
+.win-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px 40px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  animation: popIn 0.35s ease;
+  margin: 16px;
+}
+
+.win-suits {
+  font-size: 2rem;
+  letter-spacing: 0.15em;
+  margin-bottom: 12px;
+}
+
+.win-card h1 {
+  font-size: 2rem;
+  margin-bottom: 16px;
+  color: #1a7a3a;
+}
+
+.win-card p {
+  font-size: 1rem;
+  color: #444;
+  margin-bottom: 8px;
+}
+
+.win-card .btn-primary {
+  margin-top: 20px;
+  font-size: 1rem;
+  padding: 10px 28px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes popIn {
+  from { transform: scale(0.7); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
