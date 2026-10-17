@@ -9,10 +9,11 @@ interface TableauColumnProps {
   onTapPile: (target: MoveTarget) => void;
 }
 
-// How much of each card peeks out above the one on top of it
-// expressed as a negative margin-bottom (pulls next card up)
-const PEEK_DOWN = 'calc(var(--card-h) * -0.82)';   // face-down: small peek
-const PEEK_UP   = 'calc(var(--card-h) * -0.75)';   // face-up: just enough peek to show rank+suit
+// How much of each card peeks out above the one on top of it, expressed as a
+// negative margin-bottom (pulls the next card up). The fractions live in CSS
+// (--peek-up / --peek-down) so they can differ per breakpoint.
+const PEEK_DOWN = 'calc(var(--card-h) * var(--peek-down))';   // face-down: small peek
+const PEEK_UP   = 'calc(var(--card-h) * var(--peek-up))';     // face-up: shows rank+suit
 
 export const TableauColumn: FC<TableauColumnProps> = ({
   pileIndex,

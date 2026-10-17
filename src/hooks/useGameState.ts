@@ -2,6 +2,15 @@ import { useCallback, useEffect, useReducer, useRef } from 'react';
 import type { GameState, Card, MoveSource, MoveTarget } from '../engine/types';
 import { newGame, drawFromStock, applyMove, deepClone } from '../engine/game';
 import { canAutoComplete, getAutoMoveCard, canPlaceOnFoundation, canPlaceOnTableau, isMovableSequence, FOUNDATION_SUITS } from '../engine/rules';
+import {
+  type SavedGame,
+  listSavedGames,
+  getSavedGame,
+  upsertSavedGame,
+  removeSavedGame,
+  newSavedGameId,
+} from '../engine/savedGames';
+import { playMove, playFoundation, playDraw, playWin } from '../engine/sound';
 import SolverWorker from '../workers/solver.worker?worker';
 
 const MAX_RESHUFFLE_ATTEMPTS = 10;
@@ -9,6 +18,7 @@ const MAX_RESHUFFLE_ATTEMPTS = 10;
 type Action =
   | { type: 'NEW_GAME'; drawCount?: 1 | 3 }
   | { type: 'SET_GAME'; game: GameState }
+  | { type: 'LOAD_SAVED'; saved: SavedGame }
   | { type: 'RESTART' }
   | { type: 'DRAW' }
   | { type: 'MOVE'; source: MoveSource; target: MoveTarget }
@@ -20,29 +30,61 @@ interface State {
   current: GameState;
   initial: GameState;
   history: GameState[];
-  dealId: number; // increments on each new deal so useEffect can detect it
+  dealId: number;      // increments on each new deal so useEffect can detect it
+  activeId: string;    // id of the saved-game entry this state belongs to
+  createdAt: number;   // creation timestamp of the active saved-game entry
 }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'NEW_GAME': {
       const initial = newGame(action.drawCount ?? state.current.drawCount);
-      return { current: initial, initial, history: [], dealId: state.dealId + 1 };
+      return {
+        current: initial, initial, history: [],
+        dealId: state.dealId + 1,
+        activeId: newSavedGameId(),
+        createdAt: Date.now(),
+      };
     }
     case 'SET_GAME': {
-      return { current: action.game, initial: action.game, history: [], dealId: state.dealId + 1 };
+      // Used by the solver to replace an unsolvable deal with a fresh one.
+      // Reuses the same activeId/createdAt so the saved entry isn't duplicated.
+      return {
+        current: action.game, initial: action.game, history: [],
+        dealId: state.dealId + 1,
+        activeId: state.activeId,
+        createdAt: state.createdAt,
+      };
+    }
+    case 'LOAD_SAVED': {
+      const { saved } = action;
+      // If the saved game was already won, reopening it means "replay this
+      // deal" — start fresh from its original shuffle (no win popup, no new
+      // random deal). Otherwise resume exactly where it was left off.
+      const resumeCurrent = saved.current.won ? saved.initial : saved.current;
+      const resumeHistory = saved.current.won ? [] : saved.history;
+      return {
+        current: deepClone(resumeCurrent),
+        initial: deepClone(saved.initial),
+        history: resumeHistory.map((h) => deepClone(h)),
+        // Keep dealId unchanged: a restored game is not a fresh random deal,
+        // so the background solver must NOT run (it could reshuffle it away).
+        dealId: state.dealId,
+        activeId: saved.id,
+        createdAt: saved.createdAt,
+      };
     }
     case 'RESTART': {
-      return { current: deepClone(state.initial), initial: state.initial, history: [], dealId: state.dealId };
+      return { ...state, current: deepClone(state.initial), history: [] };
     }
     case 'DRAW': {
       const next = drawFromStock(state.current);
-      return { current: next, initial: state.initial, history: [...state.history, state.current], dealId: state.dealId };
+      return { ...state, current: next, history: [...state.history, state.current] };
     }
     case 'MOVE': {
       const next = applyMove(state.current, action.source, action.target);
       if (!next) return state;
-      return { current: next, initial: state.initial, history: [...state.history, state.current], dealId: state.dealId };
+      return { ...state, current: next, history: [...state.history, state.current] };
     }
     case 'AUTO_MOVE_ONE': {
       const move = getAutoMoveCard(state.current);
@@ -61,7 +103,7 @@ function reducer(state: State, action: Action): State {
       if (target.pileIndex === -1) return state;
       const next = applyMove(state.current, source, target);
       if (!next) return state;
-      return { current: next, initial: state.initial, history: [...state.history, state.current], dealId: state.dealId };
+      return { ...state, current: next, history: [...state.history, state.current] };
     }
     case 'AUTO_PLAY_FOUNDATIONS': {
       // Repeatedly send every card that can legally go to a foundation,
@@ -87,62 +129,72 @@ function reducer(state: State, action: Action): State {
         moved = true;
       }
       if (!moved) return state;
-      return { current: cur, initial: state.initial, history: [...state.history, state.current], dealId: state.dealId };
+      return { ...state, current: cur, history: [...state.history, state.current] };
     }
     case 'UNDO': {
       if (state.history.length === 0) return state;
       const history = [...state.history];
       const current = history.pop()!;
-      return { current: deepClone(current), initial: state.initial, history, dealId: state.dealId };
+      return { ...state, current: deepClone(current), history };
     }
     default:
       return state;
   }
 }
 
-const STORAGE_KEY = 'solitaire_state';
-
-function loadSaved(): State | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as State;
-    // Basic sanity check
-    if (!parsed.current || !parsed.initial || !Array.isArray(parsed.history)) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function saveState(s: State) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-  } catch {
-    // Storage full or private mode — silently ignore
-  }
-}
-
 export function useGameState(initialDrawCount: 1 | 3 = 1) {
+  // On first mount, resume the most-recently-played saved game if one exists;
+  // otherwise start a fresh deal that will become a new saved entry.
   const restoredFromSave = useRef(false);
 
   const [state, dispatch] = useReducer(reducer, undefined, () => {
-    const saved = loadSaved();
-    if (saved) {
+    const saved = listSavedGames();
+    if (saved.length > 0) {
+      const g = saved[0];
       restoredFromSave.current = true;
-      return saved;
+      return {
+        current: deepClone(g.current),
+        initial: deepClone(g.initial),
+        history: g.history.map((h) => deepClone(h)),
+        dealId: 0,
+        activeId: g.id,
+        createdAt: g.createdAt,
+      };
     }
     const initial = newGame(initialDrawCount);
-    return { current: initial, initial, history: [], dealId: 0 };
+    return {
+      current: initial, initial, history: [],
+      dealId: 0,
+      activeId: newSavedGameId(),
+      createdAt: Date.now(),
+    };
   });
 
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  // Persist to localStorage on every state change
+  // Persist the active game into its saved-games entry on every state change.
+  // This both creates the entry (first write) and autosaves live progress.
   useEffect(() => {
-    saveState(state);
+    upsertSavedGame({
+      id: state.activeId,
+      createdAt: state.createdAt,
+      lastPlayed: Date.now(),
+      drawCount: state.current.drawCount,
+      initial: state.initial,
+      current: state.current,
+      history: state.history,
+    });
   }, [state]);
+
+  // Play the victory jingle once, on the false→true transition of `won`.
+  const prevWon = useRef(state.current.won);
+  useEffect(() => {
+    if (state.current.won && !prevWon.current) {
+      playWin();
+    }
+    prevWon.current = state.current.won;
+  }, [state.current.won]);
 
   // Track reshuffle attempts for the current deal round
   const reshuffleCount = useRef(0);
@@ -184,17 +236,33 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
     dispatch({ type: 'NEW_GAME', drawCount });
   }, []);
 
+  const getSavedGames = useCallback(() => listSavedGames(), []);
+
+  const loadSavedGame = useCallback((id: string) => {
+    const saved = getSavedGame(id);
+    if (saved) dispatch({ type: 'LOAD_SAVED', saved });
+  }, []);
+
+  const deleteSavedGame = useCallback((id: string) => {
+    removeSavedGame(id);
+  }, []);
+
   const restart = useCallback(() => {
     dispatch({ type: 'RESTART' });
   }, []);
 
   const draw = useCallback(() => {
+    playDraw();
     dispatch({ type: 'DRAW' });
   }, []);
 
   const move = useCallback((source: MoveSource, target: MoveTarget): boolean => {
     const valid = applyMove(stateRef.current.current, source, target) !== null;
-    if (valid) dispatch({ type: 'MOVE', source, target });
+    if (valid) {
+      if (target.area === 'foundation') playFoundation();
+      else playMove();
+      dispatch({ type: 'MOVE', source, target });
+    }
     return valid;
   }, []);
 
@@ -226,6 +294,7 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
     if (card) {
       for (let fi = 0; fi < 4; fi++) {
         if (canPlaceOnFoundation(card, gs.foundations[fi], fi)) {
+          playFoundation();
           dispatch({ type: 'MOVE', source, target: { area: 'foundation', pileIndex: fi } });
           return true;
         }
@@ -239,6 +308,7 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
         if (source.area === 'tableau' && ti === source.pileIndex) continue; // skip own column
         const targetPile = gs.tableau[ti];
         if (canPlaceOnTableau(bottom, targetPile)) {
+          playMove();
           dispatch({ type: 'MOVE', source, target: { area: 'tableau', pileIndex: ti } });
           return true;
         }
@@ -249,6 +319,11 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
   }, []);
 
   const autoMoveOne = useCallback(() => {
+    // Only make a sound / dispatch if there is actually a card to move,
+    // otherwise the end-of-game loop would keep "popping" after the last
+    // card already reached the foundations.
+    if (!getAutoMoveCard(stateRef.current.current)) return;
+    playFoundation();
     dispatch({ type: 'AUTO_MOVE_ONE' });
   }, []);
 
@@ -269,7 +344,11 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
     canUndo,
     canAutoCompleteNow,
     canAutoPlayToFoundations,
+    activeId: state.activeId,
+    getSavedGames,
     startNewGame,
+    loadSavedGame,
+    deleteSavedGame,
     restart,
     draw,
     move,
