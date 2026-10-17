@@ -7,7 +7,6 @@ interface CardViewProps {
   source: MoveSource;
   stackedCards?: Card[];
   style?: CSSProperties;
-  selected?: boolean;
   onTap?: (source: MoveSource, cards: Card[]) => void;
 }
 
@@ -16,7 +15,6 @@ export const CardView: FC<CardViewProps> = ({
   source,
   stackedCards,
   style,
-  selected,
   onTap,
 }) => {
   const red = isRed(card.suit);
@@ -36,7 +34,7 @@ export const CardView: FC<CardViewProps> = ({
 
   return (
     <div
-      className={`card card-face${red ? ' card-red' : ' card-black'}${selected ? ' card-selected' : ''}`}
+      className={`card card-face${red ? ' card-red' : ' card-black'}`}
       style={style}
       onClick={handleClick}
     >

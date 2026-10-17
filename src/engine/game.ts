@@ -24,9 +24,7 @@ export function newGame(drawCount: 1 | 3 = 1): GameState {
     stock: deck.slice(deckIndex).map(c => ({ ...c, faceUp: false })),
     waste: [],
     drawCount,
-    moves: 0,
     won: false,
-    score: 0,
   };
 }
 
@@ -39,7 +37,6 @@ export function drawFromStock(state: GameState): GameState {
       ...state,
       stock: [...state.waste].reverse().map(c => ({ ...c, faceUp: false })),
       waste: [],
-      moves: state.moves + 1,
     };
   }
   const count = Math.min(state.drawCount, state.stock.length);
@@ -48,7 +45,6 @@ export function drawFromStock(state: GameState): GameState {
     ...state,
     stock: state.stock.slice(0, state.stock.length - count),
     waste: [...state.waste, ...drawn],
-    moves: state.moves + 1,
   };
 }
 
@@ -93,25 +89,8 @@ export function applyMove(state: GameState, source: MoveSource, target: MoveTarg
     return null;
   }
 
-  newState.moves = state.moves + 1;
-  newState.score = calcScore(state, newState);
   newState.won = checkWon(newState);
   return newState;
-}
-
-function calcScore(prev: GameState, next: GameState): number {
-  let score = prev.score;
-  // +10 for each card moved to foundation
-  const prevFoundationCount = prev.foundations.reduce((a, p) => a + p.length, 0);
-  const nextFoundationCount = next.foundations.reduce((a, p) => a + p.length, 0);
-  score += (nextFoundationCount - prevFoundationCount) * 10;
-  // +5 for flipping a face-down tableau card
-  for (let i = 0; i < 7; i++) {
-    const prevFaceUp = prev.tableau[i].filter(c => c.faceUp).length;
-    const nextFaceUp = next.tableau[i].filter(c => c.faceUp).length;
-    if (nextFaceUp > prevFaceUp) score += 5;
-  }
-  return score;
 }
 
 export function deepClone<T>(obj: T): T {

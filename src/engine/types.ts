@@ -22,9 +22,7 @@ export interface GameState {
   stock: Card[];
   waste: Card[];
   drawCount: 1 | 3;
-  moves: number;
   won: boolean;
-  score: number;
 }
 
 export interface MoveSource {

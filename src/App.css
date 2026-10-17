@@ -61,13 +61,6 @@ body {
   align-items: center;
 }
 
-.toolbar-center {
-  display: flex;
-  gap: 12px;
-  color: rgba(255,255,255,0.85);
-  font-size: 0.82rem;
-}
-
 .toolbar-right {
   display: flex;
   align-items: center;
@@ -80,10 +73,6 @@ body {
   font-weight: 700;
   font-size: 1rem;
   letter-spacing: 0.04em;
-}
-
-.stat {
-  font-variant-numeric: tabular-nums;
 }
 
 /* Buttons */
@@ -215,11 +204,6 @@ body {
   height: var(--card-h);
 }
 
-.pile-slot-active {
-  border-color: rgba(255,255,255,0.65);
-  background: rgba(255,255,255,0.06);
-}
-
 .pile-placeholder {
   position: absolute;
   inset: 0;
@@ -246,8 +230,10 @@ body {
   position: absolute;
   bottom: 3px;
   right: 4px;
-  font-size: clamp(0.55rem, 1.5vw, 0.7rem);
-  color: rgba(255,255,255,0.7);
+  font-size: clamp(1rem, 3vw, 1.5rem);
+  font-weight: 700;
+  color: rgba(255,255,255,0.85);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
   pointer-events: none;
 }
 
@@ -292,7 +278,7 @@ body {
 /* Face-up card */
 .card-face {
   background: #fff;
-  border: 1px solid #c8c8c8;
+  border: 2px solid #8a8a8a;
   box-shadow: 1px 2px 4px rgba(0,0,0,0.3);
   cursor: grab;
   display: flex;
@@ -318,10 +304,10 @@ body {
 .card-corner {
   position: absolute;
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  flex-direction: row;
+  align-items: baseline;
   line-height: 1;
-  gap: 1px;
+  gap: 2px;
 }
 
 .card-corner-top {
@@ -336,13 +322,13 @@ body {
 }
 
 .card-rank {
-  font-size: clamp(0.7rem, 2.5vw, 1.1rem);
+  font-size: clamp(1.1rem, 4vw, 1.7rem);
   font-weight: 700;
   line-height: 1;
 }
 
 .card-suit {
-  font-size: clamp(0.55rem, 1.8vw, 0.9rem);
+  font-size: clamp(1.1rem, 4vw, 1.7rem);
   line-height: 1;
 }
 
@@ -360,14 +346,6 @@ body {
   border-radius: var(--card-radius);
   width: var(--card-w);
   height: var(--card-h);
-}
-
-/* Selected card highlight */
-.card-selected {
-  outline: 3px solid #ffe234;
-  outline-offset: 0;
-  box-shadow: 0 0 10px rgba(255, 226, 52, 0.7);
-  z-index: 10;
 }
 
 /* ============================================================
@@ -404,12 +382,6 @@ body {
   font-size: 2rem;
   margin-bottom: 16px;
   color: #1a7a3a;
-}
-
-.win-card p {
-  font-size: 1rem;
-  color: #444;
-  margin-bottom: 8px;
 }
 
 .win-card .btn-primary {

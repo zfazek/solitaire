@@ -22,7 +22,7 @@ export default function App() {
     undo,
   } = useGameState(1);
 
-  const { selected, tapCard, tapPile } = useSelection(move, autoMove);
+  const { tapCard, tapPile } = useSelection(move, autoMove);
 
   // Auto-complete loop
   useEffect(() => {
@@ -44,10 +44,6 @@ export default function App() {
       <header className="toolbar">
         <div className="toolbar-left">
           <span className="game-title">♠ Solitaire</span>
-        </div>
-        <div className="toolbar-center">
-          <span className="stat">Moves: {gameState.moves}</span>
-          <span className="stat">Score: {gameState.score}</span>
         </div>
         <div className="toolbar-right">
           <button className="btn" onClick={undo} disabled={!canUndo} aria-label="Undo last move">
@@ -77,7 +73,6 @@ export default function App() {
           <StockWaste
             stock={gameState.stock}
             waste={gameState.waste}
-            selection={selected}
             onDraw={draw}
             onTapCard={handleTapCard}
             onTapPile={handleTapPile}
@@ -88,7 +83,6 @@ export default function App() {
                 key={i}
                 pileIndex={i}
                 cards={pile}
-                selection={selected}
                 onTapCard={handleTapCard}
                 onTapPile={handleTapPile}
               />
@@ -102,7 +96,6 @@ export default function App() {
               key={i}
               pileIndex={i}
               cards={pile}
-              selection={selected}
               onTapCard={handleTapCard}
               onTapPile={handleTapPile}
             />
@@ -111,7 +104,7 @@ export default function App() {
       </main>
 
       {gameState.won && (
-        <WinScreen moves={gameState.moves} score={gameState.score} onNewGame={() => startNewGame()} />
+        <WinScreen onNewGame={() => startNewGame()} />
       )}
     </div>
   );

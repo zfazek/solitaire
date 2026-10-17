@@ -1,12 +1,10 @@
 import { type FC } from 'react';
 import type { Card, MoveSource, MoveTarget } from '../engine/types';
-import type { Selection } from '../hooks/useSelection';
 import { CardView } from './CardView';
 
 interface StockWasteProps {
   stock: Card[];
   waste: Card[];
-  selection: Selection | null;
   onDraw: () => void;
   onTapCard: (source: MoveSource, cards: Card[]) => void;
   onTapPile: (target: MoveTarget) => void;
@@ -15,12 +13,10 @@ interface StockWasteProps {
 export const StockWaste: FC<StockWasteProps> = ({
   stock,
   waste,
-  selection,
   onDraw,
   onTapCard,
 }) => {
   const topWaste = waste.length > 0 ? waste[waste.length - 1] : null;
-  const wasteSelected = !!(selection && selection.source.area === 'waste');
 
   return (
     <div className="stock-waste">
@@ -43,13 +39,12 @@ export const StockWaste: FC<StockWasteProps> = ({
         )}
       </div>
 
-      {/* Waste — tap card to select/auto-move */}
+      {/* Waste — tap card to auto-move */}
       <div className="pile-slot waste-pile">
         {topWaste ? (
           <CardView
             card={topWaste}
             source={{ area: 'waste', pileIndex: 0 }}
-            selected={wasteSelected}
             onTap={onTapCard}
           />
         ) : (
