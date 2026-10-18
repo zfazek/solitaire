@@ -11,6 +11,7 @@ import {
   newSavedGameId,
 } from '../engine/savedGames';
 import { playMove, playFoundation, playDraw, playWin } from '../engine/sound';
+import type { SolveResult } from '../engine/solver';
 import SolverWorker from '../workers/solver.worker?worker';
 
 const MAX_RESHUFFLE_ATTEMPTS = 10;
@@ -207,17 +208,26 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
     // Only run on new deals, not on moves/undo/restart
     if (state.dealId === lastCheckedDealId.current) return;
     lastCheckedDealId.current = state.dealId;
-    reshuffleCount.current = 0;
+    // NOTE: do NOT reset reshuffleCount here. This effect also fires for the
+    // solver's own SET_GAME reshuffles (they bump dealId), so resetting here
+    // would zero the counter on every attempt and the MAX_RESHUFFLE_ATTEMPTS
+    // cap would never accumulate — a run of false-negative solver results
+    // could reshuffle forever. The counter is reset only when the user starts
+    // a genuinely new deal round (see startNewGame).
 
     let cancelled = false;
 
     const check = (gameState: GameState) => {
       const worker = new SolverWorker();
-      worker.onmessage = (e: MessageEvent<boolean>) => {
+      worker.onmessage = (e: MessageEvent<SolveResult>) => {
         worker.terminate();
         if (cancelled) return;
-        const solvable = e.data;
-        if (!solvable && reshuffleCount.current < MAX_RESHUFFLE_ATTEMPTS) {
+        const result = e.data;
+        // Only reshuffle when the solver has DEFINITIVELY proven the deal
+        // unsolvable. An 'unknown' result (search budget exhausted) means we
+        // couldn't determine solvability — so we keep the deal rather than
+        // discarding a potentially winnable one on a false negative.
+        if (result === 'unsolvable' && reshuffleCount.current < MAX_RESHUFFLE_ATTEMPTS) {
           reshuffleCount.current++;
           const next = newGame(gameState.drawCount);
           dispatch({ type: 'SET_GAME', game: next });
@@ -233,6 +243,9 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
   }, [state.dealId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startNewGame = useCallback((drawCount?: 1 | 3) => {
+    // A user-initiated new deal begins a fresh reshuffle round, so the
+    // MAX_RESHUFFLE_ATTEMPTS cap applies per new game rather than per attempt.
+    reshuffleCount.current = 0;
     dispatch({ type: 'NEW_GAME', drawCount });
   }, []);
 

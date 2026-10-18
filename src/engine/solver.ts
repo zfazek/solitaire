@@ -1,14 +1,26 @@
 /**
  * Fast Klondike solvability checker.
  * Uses DFS with move ordering and a visited-state set to avoid cycles.
- * Returns true if a winning sequence is found within the move budget.
- * Returns false if the budget is exhausted (inconclusive — may still be solvable).
+ *
+ * Returns a tri-state result:
+ *   - 'solvable'   — a winning sequence was found.
+ *   - 'unsolvable' — the entire reachable state space was exhausted with no
+ *                    win (the DFS stack emptied within budget). This is a
+ *                    definitive proof that the deal cannot be won.
+ *   - 'unknown'    — the move budget ran out before the search completed, so
+ *                    the deal's solvability could not be determined.
  */
 
 import type { GameState, Card, MoveSource, MoveTarget } from './types';
 import { canPlaceOnTableau, canPlaceOnFoundation } from './rules';
 
-const MAX_MOVES = 2000;
+export type SolveResult = 'solvable' | 'unsolvable' | 'unknown';
+
+// Budget for the DFS. The check runs in a background Web Worker (off the main
+// thread), so a large budget does not block the UI. It must be high enough
+// that most solvable deals are actually proven solvable rather than timing
+// out into 'unknown'.
+const MAX_MOVES = 200000;
 
 interface SolverState {
   tableau: Card[][];
@@ -18,11 +30,18 @@ interface SolverState {
   drawCount: 1 | 3;
 }
 
+// Injective state key: every card has a unique id, so serialising the tableau
+// (with face-up flags), the foundation tops, and the FULL ordered stock and
+// waste uniquely identifies a state. (A card's face-up status in stock/waste
+// is implied by the pile: stock is face-down, waste face-up.) Serialising the
+// stock/waste fully — rather than just their lengths / top card — prevents
+// distinct states from colliding and being wrongly pruned as "visited", which
+// would make the solver skip subtrees and report false negatives.
 function stateKey(s: SolverState): string {
   const t = s.tableau.map(p => p.map(c => `${c.id}${c.faceUp ? '+' : '-'}`).join(',')).join('|');
   const f = s.foundations.map(p => p.length > 0 ? p[p.length - 1].id : '').join('|');
-  const w = s.waste.length > 0 ? s.waste[s.waste.length - 1].id + s.waste.length : '';
-  const st = s.stock.length;
+  const w = s.waste.map(c => c.id).join(',');
+  const st = s.stock.map(c => c.id).join(',');
   return `${t}/${f}/${w}/${st}`;
 }
 
@@ -157,7 +176,7 @@ function applyMoveToSolver(s: SolverState, move: Move): SolverState | null {
   return ns;
 }
 
-export function isSolvable(gameState: GameState): boolean {
+export function isSolvable(gameState: GameState): SolveResult {
   const initial: SolverState = {
     tableau: gameState.tableau.map(p => p.map(c => ({ ...c }))),
     foundations: gameState.foundations.map(p => p.map(c => ({ ...c }))),
@@ -173,7 +192,7 @@ export function isSolvable(gameState: GameState): boolean {
   while (stack.length > 0 && totalMoves < MAX_MOVES) {
     const { state, depth } = stack.pop()!;
 
-    if (isWon(state)) return true;
+    if (isWon(state)) return 'solvable';
 
     const key = stateKey(state);
     if (visited.has(key)) continue;
@@ -191,5 +210,8 @@ export function isSolvable(gameState: GameState): boolean {
     }
   }
 
-  return false; // budget exhausted — assume unsolvable for reshuffle purposes
+  // If the stack emptied, we exhausted every reachable state without a win:
+  // the deal is provably unsolvable. If instead the budget ran out while
+  // states remained to explore, we simply don't know.
+  return stack.length === 0 ? 'unsolvable' : 'unknown';
 }
