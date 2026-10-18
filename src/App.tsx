@@ -7,6 +7,7 @@ import { StockWaste } from './components/StockWaste';
 import { WinScreen } from './components/WinScreen';
 import { SavedGamesPanel } from './components/SavedGamesPanel';
 import { isSoundEnabled, setSoundEnabled } from './engine/sound';
+import { isBoardFlipped, setBoardFlipped as persistBoardFlipped } from './engine/layout';
 import type { MoveSource, MoveTarget } from './engine/types';
 import './App.css';
 
@@ -32,11 +33,20 @@ export default function App() {
   const [showSaved, setShowSaved] = useState(false);
   const [savedSnapshot, setSavedSnapshot] = useState(() => getSavedGames());
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
+  const [boardFlipped, setBoardFlipped] = useState(() => isBoardFlipped());
 
   const toggleSound = () => {
     const next = !soundOn;
     setSoundEnabled(next);
     setSoundOn(next);
+  };
+
+  const toggleBoardFlip = () => {
+    setBoardFlipped(prev => {
+      const next = !prev;
+      persistBoardFlipped(next);
+      return next;
+    });
   };
 
   const openSaved = () => {
@@ -63,7 +73,7 @@ export default function App() {
     <div className="app">
       <header className="toolbar">
         <div className="toolbar-left">
-          <span className="game-title">♠<span className="title-word"> Solitaire</span></span>
+          <span className="game-title" onClick={toggleBoardFlip}>♠<span className="title-word"> Solitaire</span></span>
         </div>
         <div className="toolbar-right">
           <button className="btn" onClick={undo} disabled={!canUndo} aria-label="Undo last move">
@@ -107,7 +117,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="board">
+      <main className={`board${boardFlipped ? ' flipped' : ''}`}>
         <div className="top-row">
           <StockWaste
             stock={gameState.stock}

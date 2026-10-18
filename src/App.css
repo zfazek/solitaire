@@ -183,6 +183,12 @@ body {
   margin: 0 auto;
 }
 
+/* Flip: mirror ONLY the top row horizontally — foundations move to the left,
+   stock/waste to the right. Tableau and vertical layout stay unchanged. */
+.board.flipped .top-row {
+  flex-direction: row-reverse;
+}
+
 /* On large screens use fixed comfortable card size */
 @media (min-width: 640px) {
   :root {
