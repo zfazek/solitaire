@@ -1,11 +1,12 @@
 import { type FC } from 'react';
 import type { Card, MoveSource, MoveTarget } from '../engine/types';
 import { RANK_LABELS, SUIT_SYMBOLS, isRed } from '../engine/deck';
+import { shakeElement } from '../engine/shake';
 
 interface TableauColumnProps {
   pileIndex: number;
   cards: Card[];
-  onTapCard: (source: MoveSource, cards: Card[]) => void;
+  onTapCard: (source: MoveSource, cards: Card[]) => boolean | void;
   onTapPile: (target: MoveTarget) => void;
 }
 
@@ -50,7 +51,8 @@ export const TableauColumn: FC<TableauColumnProps> = ({
         const handleClick = (e: React.MouseEvent) => {
           e.stopPropagation();
           if (!card.faceUp) return;
-          onTapCard(source, stackedCards ?? [card]);
+          const moved = onTapCard(source, stackedCards ?? [card]);
+          if (moved === false) shakeElement(e.currentTarget as HTMLElement);
         };
 
         if (!card.faceUp) {
@@ -79,15 +81,10 @@ export const TableauColumn: FC<TableauColumnProps> = ({
             }}
             onClick={handleClick}
           >
-            <div className="card-corner card-corner-top">
-              <span className="card-rank">{label}</span>
-              <span className="card-suit">{symbol}</span>
-            </div>
-            <div className="card-center">{symbol}</div>
-            <div className="card-corner card-corner-bottom">
-              <span className="card-rank">{label}</span>
-              <span className="card-suit">{symbol}</span>
-            </div>
+            <span className="card-rank card-rank-top">{label}</span>
+            <span className="card-suit card-suit-top">{symbol}</span>
+            <span className="card-rank card-rank-bottom">{label}</span>
+            <span className="card-suit card-suit-bottom">{symbol}</span>
           </div>
         );
       })}

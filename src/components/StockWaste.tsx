@@ -6,7 +6,7 @@ interface StockWasteProps {
   stock: Card[];
   waste: Card[];
   onDraw: () => void;
-  onTapCard: (source: MoveSource, cards: Card[]) => void;
+  onTapCard: (source: MoveSource, cards: Card[]) => boolean | void;
   onTapPile: (target: MoveTarget) => void;
 }
 

@@ -8,10 +8,11 @@ export function useSelection(
   /**
    * Tap on a face-up card: always auto-move it to the first valid position
    * (foundation first, then the first valid tableau column, skipping its own
-   * column). Tapping the same card again cycles it to the next valid spot.
+   * column). Returns true if the card moved, false if no valid move existed
+   * (so the caller can shake the tapped card).
    */
-  const tapCard = useCallback((source: MoveSource, cards: Card[]) => {
-    onAutoMove(source, cards);
+  const tapCard = useCallback((source: MoveSource, cards: Card[]): boolean => {
+    return onAutoMove(source, cards);
   }, [onAutoMove]);
 
   /** Tap on a pile container — no manual placement, auto-move handles moves. */

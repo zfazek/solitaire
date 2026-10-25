@@ -5,7 +5,7 @@ import { CardView } from './CardView';
 interface FoundationPileProps {
   pileIndex: number;
   cards: Card[];
-  onTapCard: (source: MoveSource, cards: Card[]) => void;
+  onTapCard: (source: MoveSource, cards: Card[]) => boolean | void;
   onTapPile: (target: MoveTarget) => void;
 }
 

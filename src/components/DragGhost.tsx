@@ -36,15 +36,10 @@ export const DragGhost: FC<DragGhostProps> = ({ cards, x, y }) => {
               left: 0,
             }}
           >
-            <div className="card-corner card-corner-top">
-              <span className="card-rank">{label}</span>
-              <span className="card-suit">{symbol}</span>
-            </div>
-            <div className="card-center">{symbol}</div>
-            <div className="card-corner card-corner-bottom">
-              <span className="card-rank">{label}</span>
-              <span className="card-suit">{symbol}</span>
-            </div>
+            <span className="card-rank card-rank-top">{label}</span>
+            <span className="card-suit card-suit-top">{symbol}</span>
+            <span className="card-rank card-rank-bottom">{label}</span>
+            <span className="card-suit card-suit-bottom">{symbol}</span>
           </div>
         );
       })}

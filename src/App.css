@@ -5,17 +5,22 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  /* Prevent Android WebView / mobile browsers from auto-inflating text when the
+     user raises the system font-size. Card text is sized from the card width
+     (a vw-derived length) so it must stay fixed regardless of font settings. */
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
 }
 
 :root {
-  --gap:          6px;
+  --gap:          0px;
   --board-pad:    8px;
   --card-radius:  7px;
   --toolbar-h:    44px;
   /* Vertical overlap of stacked tableau cards, as a fraction of card height.
      More negative = more overlap (smaller visible peek). Mobile uses a
      slightly smaller overlap (~10% more visible peek) so cards don't crowd. */
-  --peek-up:      -0.69;   /* face-up card: shows rank + suit (mobile: more room) */
+  --peek-up:      -0.55;   /* face-up card: shows rank + suit (mobile: more room) */
   --peek-down:    -0.80;   /* face-down card: small peek */
   font-family: 'Segoe UI', system-ui, sans-serif;
   -webkit-tap-highlight-color: transparent;
@@ -23,10 +28,10 @@
 }
 
 /* Card size is derived from screen width so 7 columns always fit */
-/* 7 cards + 6 gaps + 2*padding = 7w + 6*6 + 2*8 = 7w + 52 */
-/* So w = (100vw - 52) / 7  → set via inline calc */
+/* 7 cards + 6 gaps + 2*padding = 7w + 6*0 + 2*8 = 7w + 16 */
+/* So w = (100vw - 16) / 7  → set via inline calc */
 :root {
-  --card-w: calc((100vw - 52px) / 7);
+  --card-w: calc((100vw - 16px) / 7);
   --card-h: calc(var(--card-w) * 1.4);
 }
 
@@ -54,41 +59,103 @@ body {
   background: rgba(0,0,0,0.35);
   display: flex;
   flex-wrap: nowrap;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.toolbar-left {
-  display: flex;
-  align-items: center;
-}
-
-.toolbar-right {
-  display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 4px;
-  flex-wrap: nowrap;
+  padding: 6px 8px;
+  flex-shrink: 0;
+  /* Taller bar on mobile so the touch targets are comfortable. Desktop sets
+     its own min-height in the media query below. */
+  min-height: 60px;
 }
 
+/* Two-part toolbar: the title stays pinned on the left while all the action
+   buttons live in a single group on the right. margin-right:auto on the title
+   pushes the group to the far edge. On mobile the group wraps its own buttons
+   internally (justify-content:flex-end keeps them right-aligned) instead of
+   letting individual buttons spill under the title. */
 .game-title {
   color: #fff;
   font-weight: 700;
   font-size: 1rem;
   letter-spacing: 0.04em;
+  white-space: nowrap;
+  margin-right: auto;
 }
 
-/* The word "Solitaire" is hidden on narrow screens (just the ♠ remains) to
-   free up room for the single-row toolbar. Restored at >=640px. */
-.title-word {
+.toolbar-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+/* ---- Overflow menu (mobile-first) --------------------------------------
+   On mobile the less-used controls (Saved, Sound, 1/3 draw switch) live in a
+   dropdown opened by the ☰ Menu button, so the toolbar stays uncluttered.
+   On desktop (min-width:640px) the dropdown is flattened back into the inline
+   toolbar and the toggle button is hidden — see the media query below. */
+.toolbar-menu {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  /* On mobile the toggle sits at the far right of the toolbar even though the
+     menu's items belong mid-row on desktop; flex order moves it visually
+     without changing DOM order (desktop resets order to 0 in the media query). */
+  order: 1;
+}
+
+.toolbar-menu-items {
   display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 100;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px;
+  background: #1c2b22;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+  min-width: 140px;
+}
+
+.toolbar-menu-items.is-open {
+  display: flex;
+}
+
+/* In the dropdown, always show the full label next to the icon. */
+.toolbar-menu-items .btn-label {
+  display: inline;
+}
+
+/* Center the draw switch within the dropdown column. */
+.toolbar-menu-items .draw-switch {
+  justify-content: center;
+}
+
+/* Now that the less-used controls live in the overflow menu, the toolbar has
+   room to show the full "OSolitaire" title on mobile as well. */
+.title-word {
+  display: inline;
+}
+
+/* Now that the less-used controls live in the overflow menu, the toolbar has
+   room to show text labels next to the icons on mobile as well. */
+.btn-label {
+  display: inline;
 }
 
 /* Buttons */
 .btn {
-  padding: 5px 8px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 5px 7px;
   border: 1px solid rgba(255,255,255,0.3);
   border-radius: 6px;
   background: rgba(255,255,255,0.12);
@@ -99,10 +166,18 @@ body {
   white-space: nowrap;
 }
 
-/* Icons on toolbar buttons are hidden on narrow screens so only the (shorter)
-   text labels show, keeping the toolbar on one row. Icons return at >=640px. */
+/* Mobile-first: buttons stack their label on top and icon below (the toolbar
+   is tall on mobile). The icon span comes first in the DOM, so order:1 pushes
+   it beneath the label. Icons return to an inline left position on desktop. */
 .btn-icon {
-  display: none;
+  display: block;
+  order: 1;
+  line-height: 1;
+  font-size: 1.15rem;
+}
+
+.btn-label {
+  order: 0;
 }
 
 .btn:hover {
@@ -122,6 +197,16 @@ body {
 .btn-primary:hover {
   background: #38bc63;
   border-color: #38bc63;
+}
+
+.btn-coffee {
+  background: #c8824b;
+  border-color: #c8824b;
+}
+
+.btn-coffee:hover {
+  background: #daa15f;
+  border-color: #daa15f;
 }
 
 .btn-active {
@@ -189,14 +274,25 @@ body {
   flex-direction: row-reverse;
 }
 
+/* Deck swap: reverse the stock/waste pair so the stock (deck) moves to the
+   opposite side of the pair. Combined with group-right (.flipped) this puts
+   the most-tapped pile at the far-right edge within easy thumb reach. This is
+   independent of which side the group sits on, so all four layout modes are
+   reachable. */
+.board.deck-swapped .stock-waste {
+  flex-direction: row-reverse;
+}
+
 /* On large screens use fixed comfortable card size */
 @media (min-width: 640px) {
   :root {
     --card-w: 90px;
     --card-h: 126px;
-    /* Desktop keeps the original, tighter overlap. */
-    --peek-up: -0.75;
-    --peek-down: -0.82;
+    /* Keep the desktop column gap at its original value; only mobile tightens. */
+    --gap: 3px;
+    /* Looser face-up overlap so stacked cards show more of each card. */
+    --peek-up: -0.60;
+    --peek-down: -0.85;
   }
   .board {
     padding: 12px;
@@ -204,23 +300,55 @@ body {
   }
   .toolbar {
     padding: 0 16px;
-    height: 52px;
+    min-height: 52px;
     flex-wrap: nowrap;
+    align-items: center;
   }
-  .btn {
-    padding: 6px 14px;
-    font-size: 0.85rem;
+  .toolbar-actions {
+    align-items: center;
+  }
+  .btn-label {
+    display: inline;
+    order: 0;
   }
   .btn-icon {
     display: inline;
+    order: 0;
+    font-size: inherit;
   }
   .title-word {
     display: inline;
+  }
+  .btn {
+    flex-direction: row;
+    gap: 0;
+    padding: 6px 14px;
+    font-size: 0.85rem;
   }
   .draw-switch-opt {
     width: 30px;
     padding: 6px 0;
     font-size: 0.85rem;
+  }
+  /* On desktop there is room for every control, so dissolve the overflow menu:
+     hide the ☰ toggle and lay the dropdown's items out inline in the toolbar. */
+  .toolbar-menu-toggle {
+    display: none;
+  }
+  .toolbar-menu,
+  .toolbar-menu-items,
+  .toolbar-menu-items.is-open {
+    display: flex;
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    min-width: 0;
+    background: none;
+    border: none;
+    box-shadow: none;
+    order: 0;
   }
 }
 
@@ -315,6 +443,9 @@ body {
   gap: var(--gap);
   justify-content: center;
   align-items: flex-start;
+  /* A little extra breathing room between the stock/waste/foundation row and
+     the tableau columns, on top of the board's flex gap. */
+  margin-top: 8px;
 }
 
 .tableau-column {
@@ -327,6 +458,7 @@ body {
    Card base
    ============================================================ */
 .card {
+  position: relative;
   width: var(--card-w);
   height: var(--card-h);
   border-radius: var(--card-radius);
@@ -398,43 +530,58 @@ body {
   color: #1a1a1a;
 }
 
-/* Corner labels */
-.card-corner {
+/* Corner labels — rank and suit sit on OPPOSITE horizontal sides of the card.
+   Top edge: rank top-left, suit top-right. Bottom edge is mirrored: rank
+   bottom-right, suit bottom-left (each rotated 180° so it reads upside-down
+   like a real playing card). */
+.card-rank,
+.card-suit {
   position: absolute;
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
+  display: block;
   line-height: 1;
-  gap: 2px;
+  /* Size is a fraction of the card width (a vw-derived length on mobile, a
+     fixed 90px on desktop), NOT rem/em, so the Android system font-size and
+     bold-text accessibility settings do not scale it. Rank and suit share the
+     same size. */
+  font-size: calc(var(--card-w) * 0.46);
 }
 
-.card-corner-top {
-  top: 3px;
+.card-rank {
+  font-weight: 700;
+  /* Keep "10" on one line. Use tabular (fixed-width) numerals so the two-digit
+     "10" has a predictable width and does not drift. No negative letter-spacing
+     — trailing letter-spacing would widen the box and shift right-anchored
+     (bottom) labels toward the card centre. */
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.card-suit {
+  /* 20% smaller than the rank: 0.46 * 0.8 = 0.368. */
+  font-size: calc(var(--card-w) * 0.368);
+}
+
+.card-rank-top {
+  top: 0;
   left: 4px;
 }
 
-.card-corner-bottom {
-  bottom: 3px;
+.card-suit-top {
+  top: 0;
+  right: 4px;
+}
+
+.card-rank-bottom {
+  bottom: 0;
   right: 4px;
   transform: rotate(180deg);
 }
 
-.card-rank {
-  font-size: clamp(1.1rem, 4vw, 1.7rem);
-  font-weight: 700;
-  line-height: 1;
-}
-
-.card-suit {
-  font-size: clamp(1.1rem, 4vw, 1.7rem);
-  line-height: 1;
-}
-
-/* Center pip */
-.card-center {
-  font-size: clamp(1.1rem, 4vw, 2.4rem);
-  line-height: 1;
-  pointer-events: none;
+.card-suit-bottom {
+  bottom: 0;
+  left: 4px;
+  transform: rotate(180deg);
 }
 
 /* Placeholder for dragged card position */

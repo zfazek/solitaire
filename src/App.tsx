@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGameState } from './hooks/useGameState';
 import { useSelection } from './hooks/useSelection';
 import { TableauColumn } from './components/TableauColumn';
@@ -7,7 +7,8 @@ import { StockWaste } from './components/StockWaste';
 import { WinScreen } from './components/WinScreen';
 import { SavedGamesPanel } from './components/SavedGamesPanel';
 import { isSoundEnabled, setSoundEnabled } from './engine/sound';
-import { isBoardFlipped, setBoardFlipped as persistBoardFlipped } from './engine/layout';
+import { getLayoutMode, setLayoutMode, nextLayoutMode, isGroupRight, isDeckSwapped } from './engine/layout';
+import { openDonatePage } from './engine/donate';
 import type { MoveSource, MoveTarget } from './engine/types';
 import './App.css';
 
@@ -29,11 +30,14 @@ export default function App() {
     undo,
   } = useGameState(1);
 
-  const { tapCard, tapPile } = useSelection(move, autoMove);
   const [showSaved, setShowSaved] = useState(false);
   const [savedSnapshot, setSavedSnapshot] = useState(() => getSavedGames());
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
-  const [boardFlipped, setBoardFlipped] = useState(() => isBoardFlipped());
+  const [layoutMode, setLayoutModeState] = useState(() => getLayoutMode());
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const { tapCard, tapPile } = useSelection(move, autoMove);
 
   const toggleSound = () => {
     const next = !soundOn;
@@ -41,10 +45,10 @@ export default function App() {
     setSoundOn(next);
   };
 
-  const toggleBoardFlip = () => {
-    setBoardFlipped(prev => {
-      const next = !prev;
-      persistBoardFlipped(next);
+  const cycleLayout = () => {
+    setLayoutModeState(prev => {
+      const next = nextLayoutMode(prev);
+      setLayoutMode(next);
       return next;
     });
   };
@@ -61,8 +65,20 @@ export default function App() {
     return () => clearInterval(id);
   }, [canAutoCompleteNow, gameState.won, autoMoveOne]);
 
+  // Close the overflow menu on any click/tap outside of it.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDocPointer = (e: PointerEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onDocPointer);
+    return () => document.removeEventListener('pointerdown', onDocPointer);
+  }, [menuOpen]);
+
   const handleTapCard = (source: MoveSource, cards: typeof gameState.waste) => {
-    tapCard(source, cards);
+    return tapCard(source, cards);
   };
 
   const handleTapPile = (target: MoveTarget) => {
@@ -72,52 +88,74 @@ export default function App() {
   return (
     <div className="app">
       <header className="toolbar">
-        <div className="toolbar-left">
-          <span className="game-title" onClick={toggleBoardFlip}>♠<span className="title-word"> Solitaire</span></span>
-        </div>
-        <div className="toolbar-right">
-          <button className="btn" onClick={undo} disabled={!canUndo} aria-label="Undo last move">
-            <span className="btn-icon">↩ </span>Undo
-          </button>
-          <button className="btn" onClick={restart} aria-label="Restart this game">
-            <span className="btn-icon">↺ </span>Restart
-          </button>
-          <button className="btn" onClick={openSaved} aria-label="Saved games">
-            <span className="btn-icon">💾 </span>Saved
-          </button>
+        <span className="game-title" onClick={cycleLayout}>♠<span className="title-word"> OSolitaire</span></span>
+        <div className="toolbar-actions">
+        <button className="btn" onClick={undo} disabled={!canUndo} aria-label="Undo last move">
+          <span className="btn-icon">↩</span><span className="btn-label"> Undo</span>
+        </button>
+        <button className="btn" onClick={restart} aria-label="Restart this game">
+          <span className="btn-icon">↺</span><span className="btn-label"> Restart</span>
+        </button>
+
+        <div className="toolbar-menu" ref={menuRef}>
           <button
-            className="btn"
-            onClick={toggleSound}
-            aria-label={soundOn ? 'Mute sound' : 'Unmute sound'}
-            aria-pressed={soundOn}
+            type="button"
+            className="btn toolbar-menu-toggle"
+            onClick={() => setMenuOpen(o => !o)}
+            aria-label="More options"
+            aria-haspopup="true"
+            aria-expanded={menuOpen}
           >
-            <span className="btn-icon">{soundOn ? '🔊 ' : '🔇 '}</span>{soundOn ? 'Sound' : 'Muted'}
+            <span className="btn-icon">☰</span><span className="btn-label"> Menu</span>
           </button>
-          <div
-            className="draw-switch"
-            role="group"
-            aria-label="Draw mode — 1 or 3 cards. Switching starts a new game."
-          >
+
+          <div className={`toolbar-menu-items${menuOpen ? ' is-open' : ''}`}>
+            <button className="btn" onClick={() => { openSaved(); setMenuOpen(false); }} aria-label="Saved games">
+              <span className="btn-icon">💾</span><span className="btn-label"> Saved</span>
+            </button>
             <button
-              type="button"
-              className={`draw-switch-opt${gameState.drawCount === 1 ? ' is-on' : ''}`}
-              aria-pressed={gameState.drawCount === 1}
-              onClick={() => { if (gameState.drawCount !== 1) startNewGame(1); }}
-            >1</button>
-            <button
-              type="button"
-              className={`draw-switch-opt${gameState.drawCount === 3 ? ' is-on' : ''}`}
-              aria-pressed={gameState.drawCount === 3}
-              onClick={() => { if (gameState.drawCount !== 3) startNewGame(3); }}
-            >3</button>
+              className="btn"
+              onClick={toggleSound}
+              aria-label={soundOn ? 'Mute sound' : 'Unmute sound'}
+              aria-pressed={soundOn}
+            >
+              <span className="btn-icon">{soundOn ? '🔊' : '🔇'}</span><span className="btn-label">{soundOn ? ' Sound' : ' Muted'}</span>
+            </button>
+            <div
+              className="draw-switch"
+              role="group"
+              aria-label="Draw mode — 1 or 3 cards. Switching starts a new game."
+            >
+              <button
+                type="button"
+                className={`draw-switch-opt${gameState.drawCount === 1 ? ' is-on' : ''}`}
+                aria-pressed={gameState.drawCount === 1}
+                onClick={() => { if (gameState.drawCount !== 1) startNewGame(1); setMenuOpen(false); }}
+              >1</button>
+              <button
+                type="button"
+                className={`draw-switch-opt${gameState.drawCount === 3 ? ' is-on' : ''}`}
+                aria-pressed={gameState.drawCount === 3}
+                onClick={() => { if (gameState.drawCount !== 3) startNewGame(3); setMenuOpen(false); }}
+              >3</button>
+            </div>
           </div>
-          <button className="btn btn-primary" onClick={() => startNewGame()} aria-label="New game">
-            New Game
-          </button>
+        </div>
+
+        <button
+          className="btn btn-coffee"
+          onClick={openDonatePage}
+          aria-label="Support the developer — buy me a coffee"
+        >
+          <span className="btn-icon">☕</span><span className="btn-label"> Coffee</span>
+        </button>
+        <button className="btn btn-primary" onClick={() => startNewGame()} aria-label="New game">
+          <span className="btn-icon">✨</span><span className="btn-label"> New</span>
+        </button>
         </div>
       </header>
 
-      <main className={`board${boardFlipped ? ' flipped' : ''}`}>
+      <main className={`board${isGroupRight(layoutMode) ? ' flipped' : ''}${isDeckSwapped(layoutMode) ? ' deck-swapped' : ''}`}>
         <div className="top-row">
           <StockWaste
             stock={gameState.stock}

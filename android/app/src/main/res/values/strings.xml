@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">OSolitaire</string>
+    <string name="title_activity_main">OSolitaire</string>
+    <string name="package_name">com.ongroa.solitaire</string>
+    <string name="custom_url_scheme">com.ongroa.solitaire</string>
+</resources>

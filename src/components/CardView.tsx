@@ -1,13 +1,14 @@
 import { type FC, type CSSProperties } from 'react';
 import type { Card, MoveSource } from '../engine/types';
 import { RANK_LABELS, SUIT_SYMBOLS, isRed } from '../engine/deck';
+import { shakeElement } from '../engine/shake';
 
 interface CardViewProps {
   card: Card;
   source: MoveSource;
   stackedCards?: Card[];
   style?: CSSProperties;
-  onTap?: (source: MoveSource, cards: Card[]) => void;
+  onTap?: (source: MoveSource, cards: Card[]) => boolean | void;
 }
 
 export const CardView: FC<CardViewProps> = ({
@@ -25,7 +26,8 @@ export const CardView: FC<CardViewProps> = ({
     e.stopPropagation();
     if (!card.faceUp || !onTap) return;
     const cards = stackedCards ?? [card];
-    onTap(source, cards);
+    const moved = onTap(source, cards);
+    if (moved === false) shakeElement(e.currentTarget as HTMLElement);
   };
 
   if (!card.faceUp) {
@@ -38,15 +40,10 @@ export const CardView: FC<CardViewProps> = ({
       style={style}
       onClick={handleClick}
     >
-      <div className="card-corner card-corner-top">
-        <span className="card-rank">{label}</span>
-        <span className="card-suit">{symbol}</span>
-      </div>
-      <div className="card-center">{symbol}</div>
-      <div className="card-corner card-corner-bottom">
-        <span className="card-rank">{label}</span>
-        <span className="card-suit">{symbol}</span>
-      </div>
+      <span className="card-rank card-rank-top">{label}</span>
+      <span className="card-suit card-suit-top">{symbol}</span>
+      <span className="card-rank card-rank-bottom">{label}</span>
+      <span className="card-suit card-suit-bottom">{symbol}</span>
     </div>
   );
 };
