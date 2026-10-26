@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 500" width="1024" height="500">
+  <!--
+    Play Store feature graphic (1024 x 500).
+    Layout:
+      - Full blue background (brand #1A3C64) with a subtle radial highlight.
+      - Left: the app logo (two aces + the O).
+      - Right: the wordmark "OSolitaire" with an elegant serif, plus a short
+        tagline underneath.
+    Keep important content away from the extreme edges (Play may crop/overlay).
+  -->
+  <defs>
+    <radialGradient id="bg" cx="32%" cy="40%" r="80%">
+      <stop offset="0%"  stop-color="#24507f"/>
+      <stop offset="100%" stop-color="#15314f"/>
+    </radialGradient>
+    <filter id="cardShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="9" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="500" fill="url(#bg)"/>
+
+  <!-- ===== Logo group, left side, scaled & centred around (300,250) ===== -->
+  <g transform="translate(300 250) scale(0.42) translate(-512 -500)">
+    <!-- LEFT card: Ace of Hearts -->
+    <g transform="rotate(-16 400 530)">
+      <g filter="url(#cardShadow)">
+        <rect x="250" y="340" width="280" height="380" rx="24"
+              fill="#f7f7f4" stroke="#d8d8d2" stroke-width="3"/>
+      </g>
+      <text x="290" y="418" font-family="Georgia, 'Times New Roman', serif"
+            font-size="70" font-weight="700" fill="#c0392b" text-anchor="middle">A</text>
+      <path d="M290,425 c-11,-14 -34,-9 -34,9 c0,17 34,34 34,34 c0,0 34,-17 34,-34 c0,-18 -23,-23 -34,-9 z" fill="#c0392b"/>
+      <path d="M390,500 c-30,-38 -94,-24 -94,26 c0,50 94,104 94,104 c0,0 94,-54 94,-104 c0,-50 -64,-64 -94,-26 z" fill="#c0392b"/>
+    </g>
+    <!-- O ring (blue, blends with gap) -->
+    <ellipse cx="512" cy="500" rx="118" ry="188" fill="none" stroke="#1A3C64"
+             stroke-width="30" stroke-linecap="round" style="filter:url(#cardShadow)"/>
+    <!-- RIGHT card: Ace of Spades -->
+    <g transform="rotate(16 624 500)">
+      <g filter="url(#cardShadow)">
+        <rect x="494" y="320" width="280" height="380" rx="24"
+              fill="#f7f7f4" stroke="#d8d8d2" stroke-width="3"/>
+      </g>
+      <text x="534" y="398" font-family="Georgia, 'Times New Roman', serif"
+            font-size="70" font-weight="700" fill="#1a1a1a" text-anchor="middle">A</text>
+      <path d="M534,408 c-16,20 -38,27 -38,47 c0,13 10,20 22,18 c-2,9 -5,14 -9,18 l50,0 c-4,-4 -7,-9 -9,-18 c12,2 22,-5 22,-18 c0,-20 -22,-27 -38,-47 z" fill="#1a1a1a"/>
+      <path d="M634,480 c-42,50 -98,70 -98,120 c0,32 25,50 56,45 c-4,23 -14,38 -23,47 l130,0 c-9,-9 -19,-24 -23,-47 c31,5 56,-13 56,-45 c0,-50 -56,-70 -98,-120 z" fill="#1a1a1a"/>
+    </g>
+  </g>
+
+  <!-- ===== Wordmark + tagline, right side ===== -->
+  <text x="556" y="230" font-family="Georgia, 'Times New Roman', serif"
+        font-size="82" font-weight="700" fill="#ffffff">OSolitaire</text>
+  <text x="558" y="288" font-family="Georgia, 'Times New Roman', serif"
+        font-size="29" fill="#cdd9e6">Classic Klondike — elegant &amp; ad-free</text>
+
+  <!-- thin accent rule under the tagline -->
+  <rect x="560" y="308" width="270" height="3" rx="1.5" fill="#c0392b"/>
+</svg>

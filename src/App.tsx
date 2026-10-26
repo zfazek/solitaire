@@ -88,7 +88,15 @@ export default function App() {
   return (
     <div className="app">
       <header className="toolbar">
-        <span className="game-title" onClick={cycleLayout}>♠<span className="title-word"> OSolitaire</span></span>
+        <span
+          className="game-title"
+          onClick={cycleLayout}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cycleLayout(); } }}
+          title="Change the table layout"
+          aria-label="Change the table layout"
+        >♠<span className="title-word"> OSolitaire</span><span className="title-layout-hint" aria-hidden="true">⤭</span></span>
         <div className="toolbar-actions">
         <button className="btn" onClick={undo} disabled={!canUndo} aria-label="Undo last move">
           <span className="btn-icon">↩</span><span className="btn-label"> Undo</span>
@@ -110,6 +118,9 @@ export default function App() {
           </button>
 
           <div className={`toolbar-menu-items${menuOpen ? ' is-open' : ''}`}>
+            <button className="btn" onClick={() => { cycleLayout(); setMenuOpen(false); }} aria-label="Change the table layout">
+              <span className="btn-icon btn-icon-layout">⤭</span><span className="btn-label"> Layout</span>
+            </button>
             <button className="btn" onClick={() => { openSaved(); setMenuOpen(false); }} aria-label="Saved games">
               <span className="btn-icon">💾</span><span className="btn-label"> Saved</span>
             </button>
@@ -121,23 +132,26 @@ export default function App() {
             >
               <span className="btn-icon">{soundOn ? '🔊' : '🔇'}</span><span className="btn-label">{soundOn ? ' Sound' : ' Muted'}</span>
             </button>
-            <div
-              className="draw-switch"
-              role="group"
-              aria-label="Draw mode — 1 or 3 cards. Switching starts a new game."
-            >
-              <button
-                type="button"
-                className={`draw-switch-opt${gameState.drawCount === 1 ? ' is-on' : ''}`}
-                aria-pressed={gameState.drawCount === 1}
-                onClick={() => { if (gameState.drawCount !== 1) startNewGame(1); setMenuOpen(false); }}
-              >1</button>
-              <button
-                type="button"
-                className={`draw-switch-opt${gameState.drawCount === 3 ? ' is-on' : ''}`}
-                aria-pressed={gameState.drawCount === 3}
-                onClick={() => { if (gameState.drawCount !== 3) startNewGame(3); setMenuOpen(false); }}
-              >3</button>
+            <div className="draw-row">
+              <span className="draw-row-label">Draw</span>
+              <div
+                className="draw-switch"
+                role="group"
+                aria-label="Draw mode — 1 or 3 cards. Switching starts a new game."
+              >
+                <button
+                  type="button"
+                  className={`draw-switch-opt${gameState.drawCount === 1 ? ' is-on' : ''}`}
+                  aria-pressed={gameState.drawCount === 1}
+                  onClick={() => { if (gameState.drawCount !== 1) startNewGame(1); setMenuOpen(false); }}
+                >1</button>
+                <button
+                  type="button"
+                  className={`draw-switch-opt${gameState.drawCount === 3 ? ' is-on' : ''}`}
+                  aria-pressed={gameState.drawCount === 3}
+                  onClick={() => { if (gameState.drawCount !== 3) startNewGame(3); setMenuOpen(false); }}
+                >3</button>
+              </div>
             </div>
           </div>
         </div>
