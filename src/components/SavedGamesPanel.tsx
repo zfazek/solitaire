@@ -1,5 +1,6 @@
 import { type FC } from 'react';
 import { type SavedGame, formatTimestamp } from '../engine/savedGames';
+import { seedToCode } from '../engine/deck';
 
 interface SavedGamesPanelProps {
   games: SavedGame[];
@@ -50,7 +51,7 @@ export const SavedGamesPanel: FC<SavedGamesPanelProps> = ({
                     {g.id === activeId && <span className="saved-badge">current</span>}
                   </span>
                   <span className="saved-item-sub">
-                    Draw {g.drawCount} · {done ? 'Won 🏆' : `${progress}/52 to foundations`}
+                    Seed {seedToCode(g.initial.seed)} · Draw {g.drawCount} · {done ? 'Won 🏆' : `${progress}/52 to foundations`}
                     {' · last played '}{formatTimestamp(g.lastPlayed)}
                   </span>
                 </button>
