@@ -111,7 +111,13 @@ export function useCardFlip(deps: unknown): void {
       anims.current.set(id, anim);
 
       anim.onfinish = anim.oncancel = () => {
+        // Swap to a permanent "settled" class instead of just removing
+        // card-flipping. Reverting to the default .card rule would re-enable
+        // `animation: cardIn` and the browser replays it from opacity:0 —
+        // making the just-landed card blink out. The card is already in place
+        // and fully visible, so it never needs the mount animation again.
         node.classList.remove('card-flipping');
+        node.classList.add('card-settled');
         if (anims.current.get(id) === anim) anims.current.delete(id);
       };
     });
@@ -136,6 +142,7 @@ export function useCardFlip(deps: unknown): void {
       );
       reveal.onfinish = reveal.oncancel = () => {
         node.classList.remove('card-revealing');
+        node.classList.add('card-settled');
       };
     }
 
