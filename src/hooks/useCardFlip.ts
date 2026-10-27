@@ -104,7 +104,7 @@ export function useCardFlip(deps: unknown): void {
           { transform: 'translate(0, 0)' },
         ],
         {
-          duration: 260,
+          duration: 400,
           easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)',
         },
       );
@@ -119,7 +119,7 @@ export function useCardFlip(deps: unknown): void {
     // Play the deferred reveals: only delay them when a card actually travelled
     // this render (otherwise reveal immediately so nothing looks stuck).
     for (const node of reveals) {
-      const delay = anyTravel ? 230 : 0;
+      const delay = anyTravel ? 370 : 0;
       node.classList.add('card-revealing');
       const reveal = node.animate(
         [
