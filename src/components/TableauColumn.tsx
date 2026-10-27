@@ -65,6 +65,7 @@ export const TableauColumn: FC<TableauColumnProps> = ({
               <div
                 key={card.id}
                 className={`card card-face card-peek${red ? ' card-red' : ' card-black'}`}
+                data-card-id={card.id}
                 style={{
                   position: 'relative',
                   flexShrink: 0,
@@ -83,6 +84,7 @@ export const TableauColumn: FC<TableauColumnProps> = ({
             <div
               key={card.id}
               className="card card-back"
+              data-card-id={card.id}
               style={{
                 position: 'relative',
                 flexShrink: 0,
@@ -96,6 +98,7 @@ export const TableauColumn: FC<TableauColumnProps> = ({
           <div
             key={card.id}
             className={`card card-face${red ? ' card-red' : ' card-black'}`}
+            data-card-id={card.id}
             style={{
               position: 'relative',
               flexShrink: 0,

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGameState } from './hooks/useGameState';
 import { useSelection } from './hooks/useSelection';
+import { useCardFlip } from './hooks/useCardFlip';
 import { TableauColumn } from './components/TableauColumn';
 import { FoundationPile } from './components/FoundationPile';
 import { StockWaste } from './components/StockWaste';
@@ -47,6 +48,11 @@ export default function App() {
   const pressStart = useRef<{ x: number; y: number } | null>(null);
 
   const { tapCard, tapPile } = useSelection(move, autoMove);
+
+  // FLIP travel animation: glides cards from their old pile to their new one
+  // after every state change. Driven by DOM position diffing, so it covers all
+  // move paths (tap, auto-move, auto-complete, draw, undo) automatically.
+  useCardFlip(gameState);
 
   const toggleSound = () => {
     const next = !soundOn;

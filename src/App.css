@@ -614,6 +614,23 @@ body {
   to   { opacity: 1; transform: translateY(0)     scale(1); }
 }
 
+/* While a card is mid-FLIP (gliding from its old pile to its new one via the
+   Web Animations API), suppress the CSS mount animations so they don't fight
+   the travel transform. The !important beats the more specific
+   `.foundation-pile .card-face` rule below. */
+.card.card-flipping,
+.card.card-revealing,
+.foundation-pile .card-face.card-flipping {
+  animation: none !important;
+}
+
+/* A card in mid-travel must fly ABOVE every card it passes over, regardless of
+   DOM order (otherwise moving one direction renders on top and the other
+   behind, since siblings stack by source order). */
+.card.card-flipping {
+  z-index: 500;
+}
+
 /* A card landing on a foundation gets a subtle extra "pop". */
 .foundation-pile .card-face {
   animation: cardIn 0.22s ease-out both, foundationPop 0.26s ease-out both;
@@ -749,15 +766,6 @@ body {
   bottom: 0;
   left: 4px;
   transform: rotate(180deg);
-}
-
-/* Placeholder for dragged card position */
-.card-placeholder {
-  background: rgba(0,0,0,0.12);
-  border: 2px dashed rgba(255,255,255,0.2);
-  border-radius: var(--card-radius);
-  width: var(--card-w);
-  height: var(--card-h);
 }
 
 /* ============================================================

@@ -31,13 +31,14 @@ export const CardView: FC<CardViewProps> = ({
   };
 
   if (!card.faceUp) {
-    return <div className="card card-back" style={style} />;
+    return <div className="card card-back" style={style} data-card-id={card.id} />;
   }
 
   return (
     <div
       className={`card card-face${red ? ' card-red' : ' card-black'}`}
       style={style}
+      data-card-id={card.id}
       onClick={handleClick}
     >
       <span className="card-rank card-rank-top">{label}</span>
