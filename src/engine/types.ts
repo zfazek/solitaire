@@ -23,6 +23,7 @@ export interface GameState {
   waste: Card[];
   drawCount: 1 | 3;
   won: boolean;
+  seed: number;        // the seed that produced this deal (reproducible)
 }
 
 export interface MoveSource {

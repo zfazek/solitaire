@@ -1,9 +1,14 @@
 import type { GameState, Card, MoveSource, MoveTarget } from './types';
-import { createDeck, shuffle } from './deck';
+import { createDeck, shuffle, mulberry32, randomSeed } from './deck';
 import { canPlaceOnTableau, canPlaceOnFoundation, checkWon } from './rules';
 
-export function newGame(drawCount: 1 | 3 = 1): GameState {
-  const deck = shuffle(createDeck());
+/**
+ * Create a fresh deal. When `seed` is omitted a random seed is chosen, so every
+ * deal has a reproducible seed recorded on the returned state. The same seed
+ * always produces the identical deal on any device.
+ */
+export function newGame(drawCount: 1 | 3 = 1, seed: number = randomSeed()): GameState {
+  const deck = shuffle(createDeck(), mulberry32(seed));
 
   // Deal tableau: column i gets i+1 cards, last card face-up
   const tableau: Card[][] = [];
@@ -25,6 +30,7 @@ export function newGame(drawCount: 1 | 3 = 1): GameState {
     waste: [],
     drawCount,
     won: false,
+    seed,
   };
 }
 

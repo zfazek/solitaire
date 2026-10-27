@@ -9,6 +9,7 @@ import { SavedGamesPanel } from './components/SavedGamesPanel';
 import { isSoundEnabled, setSoundEnabled } from './engine/sound';
 import { getLayoutMode, setLayoutMode, nextLayoutMode, isGroupRight, isDeckSwapped } from './engine/layout';
 import { openDonatePage } from './engine/donate';
+import { seedToCode, codeToSeed, SEED_LENGTH } from './engine/deck';
 import type { MoveSource, MoveTarget } from './engine/types';
 import './App.css';
 
@@ -20,6 +21,7 @@ export default function App() {
     activeId,
     getSavedGames,
     startNewGame,
+    startSeededGame,
     loadSavedGame,
     deleteSavedGame,
     restart,
@@ -36,6 +38,8 @@ export default function App() {
   const [layoutMode, setLayoutModeState] = useState(() => getLayoutMode());
   const [menuOpen, setMenuOpen] = useState(false);
   const [revealAll, setRevealAll] = useState(false);
+  const [seedInput, setSeedInput] = useState('');
+  const [seedCopied, setSeedCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   // Long-press-on-title cheat (touch-friendly equivalent of Shift+C).
   const longPressTimer = useRef<number | null>(null);
@@ -118,6 +122,32 @@ export default function App() {
     setSavedSnapshot(getSavedGames());
     setShowSaved(true);
   };
+
+  // The reproducible code for the current deal (guards against old saved games
+  // that predate the seed feature).
+  const currentSeedCode =
+    typeof gameState.seed === 'number' ? seedToCode(gameState.seed) : '—';
+
+  const copySeed = async () => {
+    if (currentSeedCode === '—') return;
+    try {
+      await navigator.clipboard.writeText(currentSeedCode);
+      setSeedCopied(true);
+      window.setTimeout(() => setSeedCopied(false), 1200);
+    } catch {
+      // Clipboard unavailable (e.g. insecure context) — silently ignore.
+    }
+  };
+
+  const dealSeed = () => {
+    const seed = codeToSeed(seedInput);
+    if (seed === null) return; // invalid — the input shows an error state
+    startSeededGame(seed, gameState.drawCount);
+    setSeedInput('');
+    setMenuOpen(false);
+  };
+
+  const seedInputValid = seedInput === '' || codeToSeed(seedInput) !== null;
 
   // Auto-complete loop
   useEffect(() => {
@@ -251,6 +281,46 @@ export default function App() {
                   onClick={() => { if (gameState.drawCount !== 3) startNewGame(3); setMenuOpen(false); }}
                 >3</button>
               </div>
+            </div>
+            {/* Reproducible deal: show the current seed (tap to copy) and let
+                the player deal a specific seed on any device. */}
+            <div className="seed-row">
+              <button
+                type="button"
+                className="seed-current"
+                onClick={copySeed}
+                disabled={currentSeedCode === '—'}
+                aria-label={`Current deal code ${currentSeedCode}. Tap to copy.`}
+                title="Tap to copy this deal's code"
+              >
+                <span className="seed-current-label">Deal</span>
+                <span className="seed-current-code">{currentSeedCode}</span>
+                <span className="seed-current-hint">{seedCopied ? '✓ copied' : '⧉'}</span>
+              </button>
+              <form
+                className="seed-enter"
+                onSubmit={(e) => { e.preventDefault(); dealSeed(); }}
+              >
+                <input
+                  className={`seed-input${seedInputValid ? '' : ' is-invalid'}`}
+                  type="text"
+                  inputMode="text"
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  maxLength={SEED_LENGTH}
+                  placeholder={'·'.repeat(SEED_LENGTH)}
+                  value={seedInput}
+                  onChange={(e) => setSeedInput(e.target.value.toUpperCase())}
+                  aria-label={`Enter a ${SEED_LENGTH}-character deal code`}
+                />
+                <button
+                  type="submit"
+                  className="btn seed-go"
+                  disabled={codeToSeed(seedInput) === null}
+                  aria-label="Deal this code"
+                >Go</button>
+              </form>
             </div>
           </div>
         </div>

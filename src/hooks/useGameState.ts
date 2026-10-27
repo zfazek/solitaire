@@ -17,7 +17,7 @@ import SolverWorker from '../workers/solver.worker?worker';
 const MAX_RESHUFFLE_ATTEMPTS = 10;
 
 type Action =
-  | { type: 'NEW_GAME'; drawCount?: 1 | 3 }
+  | { type: 'NEW_GAME'; drawCount?: 1 | 3; seed?: number }
   | { type: 'SET_GAME'; game: GameState }
   | { type: 'LOAD_SAVED'; saved: SavedGame }
   | { type: 'RESTART' }
@@ -34,17 +34,22 @@ interface State {
   dealId: number;      // increments on each new deal so useEffect can detect it
   activeId: string;    // id of the saved-game entry this state belongs to
   createdAt: number;   // creation timestamp of the active saved-game entry
+  // When true the current deal came from an explicit user-entered seed, so the
+  // background solver must NOT reshuffle it away — the user asked for exactly
+  // this deal, solvable or not.
+  explicitSeed: boolean;
 }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'NEW_GAME': {
-      const initial = newGame(action.drawCount ?? state.current.drawCount);
+      const initial = newGame(action.drawCount ?? state.current.drawCount, action.seed);
       return {
         current: initial, initial, history: [],
         dealId: state.dealId + 1,
         activeId: newSavedGameId(),
         createdAt: Date.now(),
+        explicitSeed: action.seed !== undefined,
       };
     }
     case 'SET_GAME': {
@@ -55,6 +60,7 @@ function reducer(state: State, action: Action): State {
         dealId: state.dealId + 1,
         activeId: state.activeId,
         createdAt: state.createdAt,
+        explicitSeed: false,
       };
     }
     case 'LOAD_SAVED': {
@@ -73,6 +79,7 @@ function reducer(state: State, action: Action): State {
         dealId: state.dealId,
         activeId: saved.id,
         createdAt: saved.createdAt,
+        explicitSeed: true,
       };
     }
     case 'RESTART': {
@@ -160,6 +167,7 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
         dealId: 0,
         activeId: g.id,
         createdAt: g.createdAt,
+        explicitSeed: true,
       };
     }
     const initial = newGame(initialDrawCount);
@@ -168,6 +176,7 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
       dealId: 0,
       activeId: newSavedGameId(),
       createdAt: Date.now(),
+      explicitSeed: false,
     };
   });
 
@@ -208,6 +217,9 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
     // Only run on new deals, not on moves/undo/restart
     if (state.dealId === lastCheckedDealId.current) return;
     lastCheckedDealId.current = state.dealId;
+    // A deal entered from an explicit user seed must be reproduced exactly —
+    // never reshuffled away, even if unsolvable. The user asked for this deal.
+    if (state.explicitSeed) return;
     // NOTE: do NOT reset reshuffleCount here. This effect also fires for the
     // solver's own SET_GAME reshuffles (they bump dealId), so resetting here
     // would zero the counter on every attempt and the MAX_RESHUFFLE_ATTEMPTS
@@ -247,6 +259,13 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
     // MAX_RESHUFFLE_ATTEMPTS cap applies per new game rather than per attempt.
     reshuffleCount.current = 0;
     dispatch({ type: 'NEW_GAME', drawCount });
+  }, []);
+
+  // Deal a specific seed. The deal is reproduced exactly and is NOT subject to
+  // the solvability reshuffle (see the solver effect's explicitSeed guard).
+  const startSeededGame = useCallback((seed: number, drawCount?: 1 | 3) => {
+    reshuffleCount.current = 0;
+    dispatch({ type: 'NEW_GAME', drawCount, seed });
   }, []);
 
   const getSavedGames = useCallback(() => listSavedGames(), []);
@@ -360,6 +379,7 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
     activeId: state.activeId,
     getSavedGames,
     startNewGame,
+    startSeededGame,
     loadSavedGame,
     deleteSavedGame,
     restart,
