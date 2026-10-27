@@ -8,6 +8,7 @@ interface TableauColumnProps {
   cards: Card[];
   onTapCard: (source: MoveSource, cards: Card[]) => boolean | void;
   onTapPile: (target: MoveTarget) => void;
+  revealAll?: boolean;
 }
 
 // How much of each card peeks out above the one on top of it, expressed as a
@@ -21,6 +22,7 @@ export const TableauColumn: FC<TableauColumnProps> = ({
   cards,
   onTapCard,
   onTapPile,
+  revealAll = false,
 }) => {
   return (
     <div
@@ -46,7 +48,7 @@ export const TableauColumn: FC<TableauColumnProps> = ({
         const label = RANK_LABELS[card.rank];
         const symbol = SUIT_SYMBOLS[card.suit];
 
-        const marginBottom = isLast ? 0 : card.faceUp ? PEEK_UP : PEEK_DOWN;
+        const marginBottom = isLast ? 0 : (card.faceUp || revealAll) ? PEEK_UP : PEEK_DOWN;
 
         const handleClick = (e: React.MouseEvent) => {
           e.stopPropagation();
@@ -56,6 +58,27 @@ export const TableauColumn: FC<TableauColumnProps> = ({
         };
 
         if (!card.faceUp) {
+          // Cheat mode: show the card's face while a key is held, but keep it
+          // non-interactive so the real game state and move rules are untouched.
+          if (revealAll) {
+            return (
+              <div
+                key={card.id}
+                className={`card card-face card-peek${red ? ' card-red' : ' card-black'}`}
+                style={{
+                  position: 'relative',
+                  flexShrink: 0,
+                  marginBottom,
+                }}
+              >
+                <span className="card-rank card-rank-top">{label}</span>
+                <span className="card-suit card-suit-top">{symbol}</span>
+                <span className="card-suit card-suit-center" aria-hidden="true">{symbol}</span>
+                <span className="card-rank card-rank-bottom">{label}</span>
+                <span className="card-suit card-suit-bottom">{symbol}</span>
+              </div>
+            );
+          }
           return (
             <div
               key={card.id}
@@ -83,6 +106,7 @@ export const TableauColumn: FC<TableauColumnProps> = ({
           >
             <span className="card-rank card-rank-top">{label}</span>
             <span className="card-suit card-suit-top">{symbol}</span>
+            <span className="card-suit card-suit-center" aria-hidden="true">{symbol}</span>
             <span className="card-rank card-rank-bottom">{label}</span>
             <span className="card-suit card-suit-bottom">{symbol}</span>
           </div>

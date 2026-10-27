@@ -42,6 +42,7 @@ export const CardView: FC<CardViewProps> = ({
     >
       <span className="card-rank card-rank-top">{label}</span>
       <span className="card-suit card-suit-top">{symbol}</span>
+      <span className="card-suit card-suit-center" aria-hidden="true">{symbol}</span>
       <span className="card-rank card-rank-bottom">{label}</span>
       <span className="card-suit card-suit-bottom">{symbol}</span>
     </div>

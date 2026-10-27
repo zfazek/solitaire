@@ -35,7 +35,12 @@ export default function App() {
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
   const [layoutMode, setLayoutModeState] = useState(() => getLayoutMode());
   const [menuOpen, setMenuOpen] = useState(false);
+  const [revealAll, setRevealAll] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  // Long-press-on-title cheat (touch-friendly equivalent of Shift+C).
+  const longPressTimer = useRef<number | null>(null);
+  const longPressFired = useRef(false);
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
 
   const { tapCard, tapPile } = useSelection(move, autoMove);
 
@@ -53,6 +58,62 @@ export default function App() {
     });
   };
 
+  // Long-press on the title = cheat reveal (mobile-friendly). Hold ~500ms to
+  // flip all face-down tableau cards up; release to hide. A short tap still
+  // cycles the layout. Moving more than ~10px cancels it (treated as a scroll).
+  const LONG_PRESS_MS = 500;
+  const MOVE_TOLERANCE_PX = 10;
+
+  const clearLongPress = () => {
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    pressStart.current = null;
+  };
+
+  const onTitlePointerDown = (e: React.PointerEvent) => {
+    // On touch, prevent the browser's own long-press (text selection / callout
+    // / context menu). Without this, mobile browsers fire `pointercancel`
+    // around the 500ms mark and kill the reveal gesture. The Android WebView
+    // disables these natively, which is why it worked there but not in Brave /
+    // Safari. Only do this for touch/pen so desktop focus behaviour is intact.
+    if (e.pointerType !== 'mouse') e.preventDefault();
+    longPressFired.current = false;
+    pressStart.current = { x: e.clientX, y: e.clientY };
+    longPressTimer.current = window.setTimeout(() => {
+      longPressFired.current = true;
+      setRevealAll(true);
+    }, LONG_PRESS_MS);
+  };
+
+  const onTitlePointerMove = (e: React.PointerEvent) => {
+    if (!pressStart.current || longPressFired.current) return;
+    const dx = e.clientX - pressStart.current.x;
+    const dy = e.clientY - pressStart.current.y;
+    if (Math.hypot(dx, dy) > MOVE_TOLERANCE_PX) clearLongPress();
+  };
+
+  const endTitlePress = () => {
+    clearLongPress();
+    if (longPressFired.current) {
+      // The hold revealed the cards — stop revealing and suppress the tap.
+      setRevealAll(false);
+      longPressFired.current = false;
+    } else {
+      // Short tap: normal behaviour — cycle the layout.
+      cycleLayout();
+    }
+  };
+
+  const cancelTitlePress = () => {
+    clearLongPress();
+    if (longPressFired.current) {
+      setRevealAll(false);
+      longPressFired.current = false;
+    }
+  };
+
   const openSaved = () => {
     setSavedSnapshot(getSavedGames());
     setShowSaved(true);
@@ -64,6 +125,29 @@ export default function App() {
     const id = setInterval(() => { autoMoveOne(); }, 120);
     return () => clearInterval(id);
   }, [canAutoCompleteNow, gameState.won, autoMoveOne]);
+
+  // Cheat mode: hold Shift+C to flip all face-down tableau cards up. This is
+  // view-only — it never mutates the game state. We match on the physical key
+  // code (KeyC) so it works regardless of keyboard layout.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'KeyC' && e.shiftKey && !e.repeat) setRevealAll(true);
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      // Clear when either the C key or Shift is released.
+      if (e.code === 'KeyC' || e.key === 'Shift') setRevealAll(false);
+    };
+    // Dropping focus (e.g. tab/alt-tab) can swallow the keyup, so clear on blur.
+    const onBlur = () => setRevealAll(false);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, []);
 
   // Close the overflow menu on any click/tap outside of it.
   useEffect(() => {
@@ -90,11 +174,16 @@ export default function App() {
       <header className="toolbar">
         <span
           className="game-title"
-          onClick={cycleLayout}
+          onPointerDown={onTitlePointerDown}
+          onPointerMove={onTitlePointerMove}
+          onPointerUp={endTitlePress}
+          onPointerCancel={cancelTitlePress}
+          onPointerLeave={cancelTitlePress}
+          onContextMenu={(e) => e.preventDefault()}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cycleLayout(); } }}
-          title="Change the table layout"
+          title="Change the table layout (long-press to peek)"
           aria-label="Change the table layout"
         >♠<span className="title-word"> OSolitaire</span><span className="title-layout-hint" aria-hidden="true">⤭</span></span>
         <div className="toolbar-actions">
@@ -131,6 +220,16 @@ export default function App() {
               aria-pressed={soundOn}
             >
               <span className="btn-icon">{soundOn ? '🔊' : '🔇'}</span><span className="btn-label">{soundOn ? ' Sound' : ' Muted'}</span>
+            </button>
+            {/* TEMPORARY: cheat toggle while the long-press gesture is debugged
+                on mobile browsers. Tap to flip all face-down tableau cards. */}
+            <button
+              className="btn"
+              onClick={() => setRevealAll(v => !v)}
+              aria-label={revealAll ? 'Turn cheat off' : 'Turn cheat on'}
+              aria-pressed={revealAll}
+            >
+              <span className="btn-icon">👁</span><span className="btn-label">{revealAll ? ' Cheat: On' : ' Cheat: Off'}</span>
             </button>
             <div className="draw-row">
               <span className="draw-row-label">Draw</span>
@@ -200,6 +299,7 @@ export default function App() {
               cards={pile}
               onTapCard={handleTapCard}
               onTapPile={handleTapPile}
+              revealAll={revealAll}
             />
           ))}
         </div>
