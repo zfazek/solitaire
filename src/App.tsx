@@ -11,8 +11,13 @@ import { isSoundEnabled, setSoundEnabled } from './engine/sound';
 import { getLayoutMode, setLayoutMode, nextLayoutMode, isGroupRight, isDeckSwapped } from './engine/layout';
 import { openDonatePage } from './engine/donate';
 import { seedToCode, codeToSeed, SEED_LENGTH } from './engine/deck';
+import { Capacitor } from '@capacitor/core';
 import type { MoveSource, MoveTarget } from './engine/types';
 import './App.css';
+
+// True when running inside the native Android app (not a web browser). Used to
+// hide the temporary Cheat toggle on Android while keeping it in browsers.
+const isAndroid = Capacitor.getPlatform() === 'android';
 
 export default function App() {
   const {
@@ -258,15 +263,18 @@ export default function App() {
               <span className="btn-icon">{soundOn ? '🔊' : '🔇'}</span><span className="btn-label">{soundOn ? ' Sound' : ' Muted'}</span>
             </button>
             {/* TEMPORARY: cheat toggle while the long-press gesture is debugged
-                on mobile browsers. Tap to flip all face-down tableau cards. */}
-            <button
-              className="btn"
-              onClick={() => setRevealAll(v => !v)}
-              aria-label={revealAll ? 'Turn cheat off' : 'Turn cheat on'}
-              aria-pressed={revealAll}
-            >
-              <span className="btn-icon">👁</span><span className="btn-label">{revealAll ? ' Cheat: On' : ' Cheat: Off'}</span>
-            </button>
+                on mobile browsers. Tap to flip all face-down tableau cards.
+                Hidden in the native Android app. */}
+            {!isAndroid && (
+              <button
+                className="btn"
+                onClick={() => setRevealAll(v => !v)}
+                aria-label={revealAll ? 'Turn cheat off' : 'Turn cheat on'}
+                aria-pressed={revealAll}
+              >
+                <span className="btn-icon">👁</span><span className="btn-label">{revealAll ? ' Cheat: On' : ' Cheat: Off'}</span>
+              </button>
+            )}
             <div className="draw-row">
               <span className="draw-row-label">Draw</span>
               <div

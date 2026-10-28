@@ -51,7 +51,7 @@ export const SavedGamesPanel: FC<SavedGamesPanelProps> = ({
                     {g.id === activeId && <span className="saved-badge">current</span>}
                   </span>
                   <span className="saved-item-sub">
-                    Seed {seedToCode(g.initial.seed)} · Draw {g.drawCount} · {done ? 'Won 🏆' : `${progress}/52 to foundations`}
+                    Seed {seedToCode(g.initial.seed)} · {g.drawCount}-card draw · {done ? 'Won 🏆' : `${progress}/52 to foundations`}
                     {' · last played '}{formatTimestamp(g.lastPlayed)}
                   </span>
                 </button>

@@ -19,6 +19,10 @@ export const FoundationPile: FC<FoundationPileProps> = ({
   onTapPile,
 }) => {
   const topCard = cards.length > 0 ? cards[cards.length - 1] : null;
+  // The card directly beneath the top one. Rendered (static, non-interactive)
+  // so that when the top card flies IN via the move animation, the slot isn't
+  // momentarily empty — it shows the previous card until the new one lands.
+  const underCard = cards.length > 1 ? cards[cards.length - 2] : null;
   const target: MoveTarget = { area: 'foundation', pileIndex };
   const source: MoveSource = { area: 'foundation', pileIndex };
 
@@ -35,10 +39,20 @@ export const FoundationPile: FC<FoundationPileProps> = ({
           {SUIT_PLACEHOLDERS[pileIndex]}
         </span>
       )}
+      {underCard && (
+        <CardView
+          key={underCard.id}
+          card={underCard}
+          source={source}
+          style={{ position: 'absolute', inset: 0 }}
+        />
+      )}
       {topCard && (
         <CardView
+          key={topCard.id}
           card={topCard}
           source={source}
+          style={underCard ? { position: 'absolute', inset: 0 } : undefined}
           onTap={(src, cds) => onTapCard(src, cds)}
         />
       )}
