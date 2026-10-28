@@ -18,7 +18,7 @@ const MAX_RESHUFFLE_ATTEMPTS = 10;
 
 type Action =
   | { type: 'NEW_GAME'; drawCount?: 1 | 3; seed?: number }
-  | { type: 'SET_GAME'; game: GameState }
+  | { type: 'COMMIT_NEW_GAME'; game: GameState }
   | { type: 'LOAD_SAVED'; saved: SavedGame }
   | { type: 'RESTART' }
   | { type: 'DRAW' }
@@ -52,14 +52,18 @@ function reducer(state: State, action: Action): State {
         explicitSeed: action.seed !== undefined,
       };
     }
-    case 'SET_GAME': {
-      // Used by the solver to replace an unsolvable deal with a fresh one.
-      // Reuses the same activeId/createdAt so the saved entry isn't duplicated.
+    case 'COMMIT_NEW_GAME': {
+      // A user-initiated new deal that has already been pre-validated by the
+      // solver OFF-SCREEN (see findAcceptableDeal). Because the candidate was
+      // chosen before committing, the board renders the final deal directly —
+      // no intermediate rejected deals ever reach the screen (no flicker).
+      // Starts a fresh saved-games entry, like NEW_GAME.
+      const game = action.game;
       return {
-        current: action.game, initial: action.game, history: [],
+        current: game, initial: game, history: [],
         dealId: state.dealId + 1,
-        activeId: state.activeId,
-        createdAt: state.createdAt,
+        activeId: newSavedGameId(),
+        createdAt: Date.now(),
         explicitSeed: false,
       };
     }
@@ -206,65 +210,92 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
     prevWon.current = state.current.won;
   }, [state.current.won]);
 
-  // Track reshuffle attempts for the current deal round
-  const reshuffleCount = useRef(0);
-  // If we restored a saved game, mark its dealId as already-checked so the
-  // solver never reshuffles a mid-game position (it only validates fresh deals).
-  const lastCheckedDealId = useRef(restoredFromSave.current ? state.dealId : -1);
-
-  // Background solvability check — fires whenever a new deal is made
-  useEffect(() => {
-    // Only run on new deals, not on moves/undo/restart
-    if (state.dealId === lastCheckedDealId.current) return;
-    lastCheckedDealId.current = state.dealId;
-    // A deal entered from an explicit user seed must be reproduced exactly —
-    // never reshuffled away, even if unsolvable. The user asked for this deal.
-    if (state.explicitSeed) return;
-    // NOTE: do NOT reset reshuffleCount here. This effect also fires for the
-    // solver's own SET_GAME reshuffles (they bump dealId), so resetting here
-    // would zero the counter on every attempt and the MAX_RESHUFFLE_ATTEMPTS
-    // cap would never accumulate — a run of false-negative solver results
-    // could reshuffle forever. The counter is reset only when the user starts
-    // a genuinely new deal round (see startNewGame).
-
-    let cancelled = false;
-
-    const check = (gameState: GameState) => {
+  // Run the solver on a single candidate deal in a background Web Worker.
+  // Resolves with the tri-state SolveResult. A fresh worker per call keeps the
+  // protocol simple (one message in, one message out); the solver's budget is
+  // small (see MAX_MOVES) so each check is sub-second.
+  const validateDeal = useCallback((game: GameState): Promise<SolveResult> => {
+    return new Promise((resolve) => {
       const worker = new SolverWorker();
       worker.onmessage = (e: MessageEvent<SolveResult>) => {
         worker.terminate();
-        if (cancelled) return;
-        const result = e.data;
-        // Only reshuffle when the solver has DEFINITIVELY proven the deal
-        // unsolvable. An 'unknown' result (search budget exhausted) means we
-        // couldn't determine solvability — so we keep the deal rather than
-        // discarding a potentially winnable one on a false negative.
-        if (result === 'unsolvable' && reshuffleCount.current < MAX_RESHUFFLE_ATTEMPTS) {
-          reshuffleCount.current++;
-          const next = newGame(gameState.drawCount);
-          dispatch({ type: 'SET_GAME', game: next });
-          // The SET_GAME dispatch will trigger this effect again via dealId change
-        }
+        resolve(e.data);
       };
-      worker.postMessage(gameState);
-    };
-
-    check(state.current);
-
-    return () => { cancelled = true; };
-  }, [state.dealId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const startNewGame = useCallback((drawCount?: 1 | 3) => {
-    // A user-initiated new deal begins a fresh reshuffle round, so the
-    // MAX_RESHUFFLE_ATTEMPTS cap applies per new game rather than per attempt.
-    reshuffleCount.current = 0;
-    dispatch({ type: 'NEW_GAME', drawCount });
+      worker.postMessage(game);
+    });
   }, []);
 
+  // Find a deal we're willing to show the player, WITHOUT committing any
+  // candidate to visible state. We generate candidates and validate them one
+  // at a time off-screen; only the chosen deal is ever dispatched, so rejected
+  // candidates never render (this is what eliminates the reshuffle flicker).
+  //
+  // Priority: never land the player on an unsolvable (or hard-to-solve) deal.
+  // We accept only a deal the solver proves 'solvable'. Anything else
+  // ('unsolvable' or 'unknown') is discarded and a new candidate is generated,
+  // up to MAX_RESHUFFLE_ATTEMPTS. If the cap is hit we return the last
+  // candidate anyway so the game always starts.
+  const findAcceptableDeal = useCallback(
+    async (drawCount: 1 | 3, firstCandidate?: GameState): Promise<GameState> => {
+      let candidate = firstCandidate ?? newGame(drawCount);
+      let reshuffles = 0;
+      for (;;) {
+        const result = await validateDeal(candidate);
+        if (result === 'solvable') {
+          console.log(`New deal settled after ${reshuffles} reshuffle(s)`);
+          return candidate;
+        }
+        if (reshuffles >= MAX_RESHUFFLE_ATTEMPTS) {
+          console.log(
+            `New deal settled after ${reshuffles} reshuffle(s) ` +
+              `(hit MAX_RESHUFFLE_ATTEMPTS=${MAX_RESHUFFLE_ATTEMPTS}, result='${result}')`,
+          );
+          return candidate;
+        }
+        reshuffles++;
+        candidate = newGame(drawCount);
+      }
+    },
+    [validateDeal],
+  );
+
+  // Validate the deal that is live on first mount. A freshly-generated initial
+  // deal (not restored from a save, not an explicit seed) is checked off-screen
+  // and, if not acceptable, replaced in a single commit. Because only the final
+  // deal is dispatched, the player never sees rejected candidates flash by.
+  const didInitialValidation = useRef(false);
+  useEffect(() => {
+    if (didInitialValidation.current) return;
+    didInitialValidation.current = true;
+    // Restored saves and explicit seeds must be reproduced exactly — don't touch.
+    if (restoredFromSave.current || state.explicitSeed) return;
+
+    let cancelled = false;
+    // Validate the already-live initial deal first; replace only if needed.
+    findAcceptableDeal(state.current.drawCount, state.current).then((game) => {
+      if (cancelled) return;
+      if (game !== state.current) {
+        dispatch({ type: 'COMMIT_NEW_GAME', game });
+      }
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const startNewGame = useCallback((drawCount?: 1 | 3) => {
+    // A user-initiated new deal begins a fresh reshuffle round. We pick an
+    // acceptable (solver-proven) deal OFF-SCREEN first, then commit it in a
+    // single dispatch — the player never sees rejected candidates, so there's
+    // no flicker. The MAX_RESHUFFLE_ATTEMPTS cap applies per new game round.
+    const dc = drawCount ?? stateRef.current.current.drawCount;
+    findAcceptableDeal(dc).then((game) => {
+      dispatch({ type: 'COMMIT_NEW_GAME', game });
+    });
+  }, [findAcceptableDeal]);
+
   // Deal a specific seed. The deal is reproduced exactly and is NOT subject to
-  // the solvability reshuffle (see the solver effect's explicitSeed guard).
+  // the solvability reshuffle (explicit seeds skip the solver entirely).
   const startSeededGame = useCallback((seed: number, drawCount?: 1 | 3) => {
-    reshuffleCount.current = 0;
     dispatch({ type: 'NEW_GAME', drawCount, seed });
   }, []);
 
