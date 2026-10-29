@@ -529,10 +529,27 @@ body {
   width: var(--card-w);
   min-height: var(--card-h);
   border-radius: var(--card-radius);
-  border: 2px dashed rgba(255,255,255,0.25);
   position: relative;
   flex-shrink: 0;
-  transition: border-color 0.12s, background 0.12s;
+  transition: background 0.12s;
+}
+
+/* The dashed outline marking an empty slot. Drawn as an overlay (not a real
+   border) so it adds no layout box — cards therefore sit flush against the
+   slot's edges instead of being pushed in by a 2px border. */
+.pile-slot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px dashed rgba(255,255,255,0.25);
+  pointer-events: none;
+  transition: border-color 0.12s, opacity 0.12s;
+}
+
+/* Hide the dashed outline as soon as the slot holds a card. */
+.pile-slot:has(.card)::before {
+  opacity: 0;
 }
 
 /* Foundation and stock/waste piles stay card-sized */
