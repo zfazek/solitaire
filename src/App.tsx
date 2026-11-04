@@ -5,7 +5,6 @@ import { useCardFlip } from './hooks/useCardFlip';
 import { TableauColumn } from './components/TableauColumn';
 import { FoundationPile } from './components/FoundationPile';
 import { StockWaste } from './components/StockWaste';
-import { WinScreen } from './components/WinScreen';
 import { SavedGamesPanel } from './components/SavedGamesPanel';
 import { isSoundEnabled, setSoundEnabled } from './engine/sound';
 import { getLayoutMode, setLayoutMode, nextLayoutMode, isGroupRight, isDeckSwapped } from './engine/layout';
@@ -388,10 +387,6 @@ export default function App() {
           ))}
         </div>
       </main>
-
-      {gameState.won && (
-        <WinScreen onNewGame={() => startNewGame()} />
-      )}
 
       {showSaved && (
         <SavedGamesPanel

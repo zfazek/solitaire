@@ -83,6 +83,15 @@ body {
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  /* The title must yield space to the action buttons: on narrow viewports
+     (e.g. Samsung A36 with a larger display-size setting, or a desktop browser
+     at high zoom) the toolbar row is `nowrap`, so an unshrinkable title would
+     push the ☰ Menu button off the right edge. Allow the title to shrink and
+     ellipsize instead of clipping the buttons. */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   /* Long-press on this element is used as a cheat gesture — stop the browser
      from selecting the text, firing its own long-press context menu, or
      claiming the touch for panning/zoom so our hold gesture gets through. */
@@ -116,6 +125,10 @@ body {
   align-items: stretch;
   justify-content: flex-end;
   gap: 4px;
+  /* Never let the button group be compressed below its content width — the
+     title (which has min-width:0) yields space instead, so the ☰ Menu button
+     is always fully visible even on narrow viewports / high browser zoom. */
+  flex: 0 0 auto;
 }
 
 /* ---- Overflow menu (mobile-first) --------------------------------------
