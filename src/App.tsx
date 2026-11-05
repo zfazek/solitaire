@@ -346,10 +346,13 @@ export default function App() {
           </div>
         </div>
 
-        {/* The "buy me a coffee" donation link is hidden in the native Android
-            app — Google Play policy prohibits donation/payment links outside
-            Play billing — but kept in the browser build. */}
-        {!isAndroid && (
+        {/* The "buy me a coffee" donation link is compiled OUT of the Android
+            build entirely (VITE_DONATE=0 folds __DONATE_ENABLED__ to false, so
+            the minifier strips this branch, openDonatePage, and the Ko-fi URL
+            from the bundle). Google Play prohibits such links, and this keeps
+            the URL out of the binary so a store scanner can't find it. The
+            browser build keeps the button. */}
+        {__DONATE_ENABLED__ && (
           <button
             className="btn btn-coffee"
             onClick={openDonatePage}
