@@ -5,6 +5,7 @@ import { useCardFlip } from './hooks/useCardFlip';
 import { TableauColumn } from './components/TableauColumn';
 import { FoundationPile } from './components/FoundationPile';
 import { StockWaste } from './components/StockWaste';
+import { WinScreen } from './components/WinScreen';
 import { SavedGamesPanel } from './components/SavedGamesPanel';
 import { isSoundEnabled, setSoundEnabled } from './engine/sound';
 import { getLayoutMode, setLayoutMode, nextLayoutMode, isGroupRight, isDeckSwapped } from './engine/layout';
@@ -35,6 +36,7 @@ export default function App() {
     autoMove,
     autoMoveOne,
     undo,
+    dismissWin,
   } = useGameState(1);
 
   const [showSaved, setShowSaved] = useState(false);
@@ -136,7 +138,7 @@ export default function App() {
   // The reproducible code for the current deal (guards against old saved games
   // that predate the seed feature).
   const currentSeedCode =
-    typeof gameState.seed === 'number' ? seedToCode(gameState.seed) : '—';
+    Number.isFinite(gameState.seed) ? seedToCode(gameState.seed) : '—';
 
   const copySeed = async () => {
     if (currentSeedCode === '—') return;
@@ -158,6 +160,12 @@ export default function App() {
   };
 
   const seedInputValid = seedInput === '' || codeToSeed(seedInput) !== null;
+
+  // Keep the seed field to legal deal-code characters only. A deal code is
+  // base-36 (0-9, A-Z), so we uppercase and strip anything else as the user
+  // types — illegal keys never appear in the field. Capped at SEED_LENGTH.
+  const sanitizeSeedInput = (raw: string) =>
+    raw.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, SEED_LENGTH);
 
   // Auto-complete loop
   useEffect(() => {
@@ -324,7 +332,7 @@ export default function App() {
                   maxLength={SEED_LENGTH}
                   placeholder={'·'.repeat(SEED_LENGTH)}
                   value={seedInput}
-                  onChange={(e) => setSeedInput(e.target.value.toUpperCase())}
+                  onChange={(e) => setSeedInput(sanitizeSeedInput(e.target.value))}
                   aria-label={`Enter a ${SEED_LENGTH}-character deal code`}
                 />
                 <button
@@ -338,13 +346,18 @@ export default function App() {
           </div>
         </div>
 
-        <button
-          className="btn btn-coffee"
-          onClick={openDonatePage}
-          aria-label="Support the developer — buy me a coffee"
-        >
-          <span className="btn-icon">☕</span><span className="btn-label"> Coffee</span>
-        </button>
+        {/* The "buy me a coffee" donation link is hidden in the native Android
+            app — Google Play policy prohibits donation/payment links outside
+            Play billing — but kept in the browser build. */}
+        {!isAndroid && (
+          <button
+            className="btn btn-coffee"
+            onClick={openDonatePage}
+            aria-label="Support the developer — buy me a coffee"
+          >
+            <span className="btn-icon">☕</span><span className="btn-label"> Coffee</span>
+          </button>
+        )}
         <button className="btn btn-primary" onClick={() => startNewGame()} aria-label="New game">
           <span className="btn-icon">✨</span><span className="btn-label"> New</span>
         </button>
@@ -387,6 +400,10 @@ export default function App() {
           ))}
         </div>
       </main>
+
+      {gameState.won && (
+        <WinScreen onOk={() => dismissWin()} />
+      )}
 
       {showSaved && (
         <SavedGamesPanel

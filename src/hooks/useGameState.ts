@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import type { GameState, Card, MoveSource, MoveTarget } from '../engine/types';
-import { newGame, drawFromStock, applyMove, deepClone } from '../engine/game';
+import { newGame, emptyGame, drawFromStock, applyMove, deepClone } from '../engine/game';
 import { canAutoComplete, getAutoMoveCard, canPlaceOnFoundation, canPlaceOnTableau, isMovableSequence, FOUNDATION_SUITS } from '../engine/rules';
 import {
   type SavedGame,
@@ -25,6 +25,7 @@ type Action =
   | { type: 'MOVE'; source: MoveSource; target: MoveTarget }
   | { type: 'AUTO_MOVE_ONE' }
   | { type: 'AUTO_PLAY_FOUNDATIONS' }
+  | { type: 'DISMISS_WIN' }
   | { type: 'UNDO' };
 
 interface State {
@@ -38,6 +39,11 @@ interface State {
   // background solver must NOT reshuffle it away — the user asked for exactly
   // this deal, solvable or not.
   explicitSeed: boolean;
+  // When true the board is a cleared, idle resting state shown after the player
+  // dismissed the win screen. Nothing is playable and this state is NOT
+  // autosaved — the won game remains intact in the saved list. Any New / Load /
+  // Restart / seeded action clears this flag.
+  idle: boolean;
 }
 
 function reducer(state: State, action: Action): State {
@@ -50,6 +56,7 @@ function reducer(state: State, action: Action): State {
         activeId: newSavedGameId(),
         createdAt: Date.now(),
         explicitSeed: action.seed !== undefined,
+        idle: false,
       };
     }
     case 'COMMIT_NEW_GAME': {
@@ -65,6 +72,7 @@ function reducer(state: State, action: Action): State {
         activeId: newSavedGameId(),
         createdAt: Date.now(),
         explicitSeed: false,
+        idle: false,
       };
     }
     case 'LOAD_SAVED': {
@@ -84,10 +92,11 @@ function reducer(state: State, action: Action): State {
         activeId: saved.id,
         createdAt: saved.createdAt,
         explicitSeed: true,
+        idle: false,
       };
     }
     case 'RESTART': {
-      return { ...state, current: deepClone(state.initial), history: [] };
+      return { ...state, current: deepClone(state.initial), history: [], idle: false };
     }
     case 'DRAW': {
       const next = drawFromStock(state.current);
@@ -143,6 +152,18 @@ function reducer(state: State, action: Action): State {
       if (!moved) return state;
       return { ...state, current: cur, history: [...state.history, state.current] };
     }
+    case 'DISMISS_WIN': {
+      // Player acknowledged the win: clear the table to an empty, idle board
+      // and wait. We do NOT start a new deal. The flag `idle` keeps this state
+      // out of autosave, so the won game stays intact in the saved list until
+      // the player picks New or opens a game from Saved.
+      return {
+        ...state,
+        current: emptyGame(state.current.drawCount),
+        history: [],
+        idle: true,
+      };
+    }
     case 'UNDO': {
       if (state.history.length === 0) return state;
       const history = [...state.history];
@@ -172,6 +193,7 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
         activeId: g.id,
         createdAt: g.createdAt,
         explicitSeed: true,
+        idle: false,
       };
     }
     const initial = newGame(initialDrawCount);
@@ -181,6 +203,7 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
       activeId: newSavedGameId(),
       createdAt: Date.now(),
       explicitSeed: false,
+      idle: false,
     };
   });
 
@@ -189,7 +212,10 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
 
   // Persist the active game into its saved-games entry on every state change.
   // This both creates the entry (first write) and autosaves live progress.
+  // Skipped while `idle` (the cleared post-win resting board) so the won game
+  // stays intact in the saved list and no empty placeholder entry is created.
   useEffect(() => {
+    if (state.idle) return;
     upsertSavedGame({
       id: state.activeId,
       createdAt: state.createdAt,
@@ -398,6 +424,10 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
     dispatch({ type: 'UNDO' });
   }, []);
 
+  const dismissWin = useCallback(() => {
+    dispatch({ type: 'DISMISS_WIN' });
+  }, []);
+
   const canUndo = state.history.length > 0;
   const canAutoCompleteNow = canAutoComplete(state.current);
   const canAutoPlayToFoundations = getAutoMoveCard(state.current) !== null;
@@ -420,5 +450,6 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
     autoMoveOne,
     autoPlayToFoundations,
     undo,
+    dismissWin,
   };
 }

@@ -34,6 +34,25 @@ export function newGame(drawCount: 1 | 3 = 1, seed: number = randomSeed()): Game
   };
 }
 
+/**
+ * An empty, idle board: every pile is empty and the game is not won. Used when
+ * the player dismisses the win screen — the table is cleared and simply waits
+ * for the player to start a New game or open one from the Saved list. This is
+ * not a playable deal (the stock is empty); it is purely a resting state.
+ * The seed is NaN so the UI shows no valid deal code (0 would be a real code).
+ */
+export function emptyGame(drawCount: 1 | 3 = 1, seed: number = NaN): GameState {
+  return {
+    tableau: [[], [], [], [], [], [], []],
+    foundations: [[], [], [], []],
+    stock: [],
+    waste: [],
+    drawCount,
+    won: false,
+    seed,
+  };
+}
+
 /** Draw from stock to waste */
 export function drawFromStock(state: GameState): GameState {
   if (state.stock.length === 0) {
