@@ -138,11 +138,6 @@ createRoot(document.getElementById('root')!).render(
 ### src/engine/solver.ts
 **Purpose**: Auto-complete solver
 
-### src/engine/freecellSolver.ts
-**Purpose**: FreeCell-style solver implementation
-
-**Note**: Runs in Web Worker (see `src/workers/solver.worker.ts`)
-
 ### src/hooks/useGameState.ts
 **Purpose**: Game state management hook
 

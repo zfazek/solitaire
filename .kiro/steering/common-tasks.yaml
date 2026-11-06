@@ -47,7 +47,6 @@ Cards in the game use a simple structure with:
 ## Modifying the Solver
 
 1. Core solver logic: `src/engine/solver.ts`
-2. FreeCell-specific: `src/engine/freecellSolver.ts`
 3. Worker wrapper: `src/workers/solver.worker.ts`
 4. Integration in `src/hooks/useGameState.ts`
 

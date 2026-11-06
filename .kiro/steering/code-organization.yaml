@@ -17,7 +17,6 @@ Core game logic and utilities.
 | `donate.ts` | Donation page opener |
 | `sound.ts` | Sound effects management |
 | `rules.ts` | Solitaire rules validation |
-| `freecellSolver.ts` | FreeCell solver implementation |
 | `index.ts` | Module exports |
 
 ### components/
