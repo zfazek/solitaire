@@ -10,7 +10,8 @@
     "sync:android": "npm run build:android && cap sync android",
     "lint": "oxlint",
     "preview": "vite preview",
-    "solve": "npx tsx solve.ts"
+    "solve": "npx tsx solve.ts",
+    "profile:solver": "node scripts/profile-solver/run.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",

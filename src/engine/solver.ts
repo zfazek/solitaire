@@ -11,8 +11,9 @@
  *                    the deal's solvability could not be determined.
  */
 
-import type { GameState, Card, MoveSource, MoveTarget } from './types';
-import { canPlaceOnTableau, canPlaceOnFoundation } from './rules';
+import type { GameState, Card } from './types';
+import { FOUNDATION_SUITS } from './rules';
+import { SUITS, isRed } from './deck';
 
 export type SolveResult = 'solvable' | 'unsolvable' | 'unknown';
 
@@ -28,158 +29,264 @@ export type SolveResult = 'solvable' | 'unsolvable' | 'unknown';
 // large time cost (the DFS move ordering plateaus around here).
 const MAX_MOVES = 5000;
 
+// ---- Compact, immutable state ---------------------------------------------
+//
+// A card is a small integer: suitIndex * 13 + (rank - 1), with suitIndex taken
+// from SUITS. Tableau cards additionally carry FACE_UP (bit 6) because their
+// visibility changes during play; stock cards are always face-down and waste
+// cards always face-up, so those piles store plain 0..51 codes.
+//
+// States are never mutated after creation. A move builds a child state that
+// copies only the piles it touches and *shares* every other pile (and the
+// array holding them) with its parent -- structural sharing -- instead of
+// deep-cloning ~52 card objects per candidate move.
+//
+// Foundations are fixed suit slots (FOUNDATION_SUITS), so each is fully
+// described by its height (0..13): the cards on it are rank 1..height.
+
+const FACE_UP = 64;
+const CARD_MASK = 63;
+
+const CARD_SUIT = new Uint8Array(52); // index into SUITS
+const CARD_RANK = new Uint8Array(52); // 1..13
+const CARD_RED = new Uint8Array(52);  // 1 for hearts/diamonds
+for (let suit = 0; suit < 4; suit++) {
+  for (let r = 0; r < 13; r++) {
+    const c = suit * 13 + r;
+    CARD_SUIT[c] = suit;
+    CARD_RANK[c] = r + 1;
+    CARD_RED[c] = isRed(SUITS[suit]) ? 1 : 0;
+  }
+}
+// Foundation slot (0..3) that accepts each suit index.
+const SUIT_SLOT = new Uint8Array(4);
+FOUNDATION_SUITS.forEach((suit, slot) => { SUIT_SLOT[SUITS.indexOf(suit)] = slot; });
+
+const EMPTY: readonly number[] = [];
+
+function encodeCard(c: Card): number {
+  return SUITS.indexOf(c.suit) * 13 + (c.rank - 1);
+}
+
 interface SolverState {
-  tableau: Card[][];
-  foundations: Card[][];
-  stock: Card[];
-  waste: Card[];
-  drawCount: 1 | 3;
+  readonly tableau: readonly (readonly number[])[]; // 7 piles, FACE_UP-flagged
+  readonly foundations: readonly number[];          // 4 heights
+  readonly stock: readonly number[];                // face-down, top = last
+  readonly waste: readonly number[];                // face-up, top = last
+  readonly drawCount: 1 | 3;
 }
 
-// Injective state key: every card has a unique id, so serialising the tableau
-// (with face-up flags), the foundation tops, and the FULL ordered stock and
-// waste uniquely identifies a state. (A card's face-up status in stock/waste
-// is implied by the pile: stock is face-down, waste face-up.) Serialising the
-// stock/waste fully — rather than just their lengths / top card — prevents
-// distinct states from colliding and being wrongly pruned as "visited", which
-// would make the solver skip subtrees and report false negatives.
-function stateKey(s: SolverState): string {
-  const t = s.tableau.map(p => p.map(c => `${c.id}${c.faceUp ? '+' : '-'}`).join(',')).join('|');
-  const f = s.foundations.map(p => p.length > 0 ? p[p.length - 1].id : '').join('|');
-  const w = s.waste.map(c => c.id).join(',');
-  const st = s.stock.map(c => c.id).join(',');
-  return `${t}/${f}/${w}/${st}`;
-}
+// State identity. The tableau (with face-up flags), the foundation heights and
+// the FULL ordered stock and waste uniquely identify a state, so all of them
+// are hashed (with a separator after each pile so pile boundaries matter).
+// Hashing the stock/waste fully -- rather than just their lengths / top card --
+// avoids distinct states being wrongly pruned as "visited", which would make
+// the solver skip subtrees and report false negatives.
+//
+// The result is a 53-bit number built from two independent 32-bit hashes, so it
+// fits exactly in a double and can live in a Set<number> (no string building).
+// A false "already visited" needs a 53-bit collision: with at most a few
+// thousand states per search that is a ~1e-9 event per deal, and it could only
+// cause a missed branch, never a wrong 'solvable' answer.
+const SEP = 255; // outside the card range (0..127), delimits piles
 
-function cloneState(s: SolverState): SolverState {
-  return {
-    tableau: s.tableau.map(p => p.map(c => ({ ...c }))),
-    foundations: s.foundations.map(p => p.map(c => ({ ...c }))),
-    stock: s.stock.map(c => ({ ...c })),
-    waste: s.waste.map(c => ({ ...c })),
-    drawCount: s.drawCount,
+function stateHash(s: SolverState): number {
+  // h1: MurmurHash3-style mixing; h2: FNV-1a with a multiplicative finish.
+  let h1 = 0x9747b28c;
+  let h2 = 0x811c9dc5;
+
+  const feed = (v: number) => {
+    let k = Math.imul(v + 1, 0xcc9e2d51);
+    k = (k << 15) | (k >>> 17);
+    k = Math.imul(k, 0x1b873593);
+    h1 ^= k;
+    h1 = (h1 << 13) | (h1 >>> 19);
+    h1 = (Math.imul(h1, 5) + 0xe6546b64) | 0;
+
+    h2 ^= v;
+    h2 = Math.imul(h2, 0x01000193);
   };
+  const feedPile = (pile: readonly number[]) => {
+    for (let i = 0; i < pile.length; i++) feed(pile[i]);
+    feed(SEP);
+  };
+
+  for (let i = 0; i < 7; i++) feedPile(s.tableau[i]);
+  feedPile(s.foundations);
+  feedPile(s.waste);
+  feedPile(s.stock);
+
+  // Final avalanche (MurmurHash3 fmix32) on both halves.
+  h1 ^= h1 >>> 16; h1 = Math.imul(h1, 0x85ebca6b);
+  h1 ^= h1 >>> 13; h1 = Math.imul(h1, 0xc2b2ae35);
+  h1 ^= h1 >>> 16;
+  h2 ^= h2 >>> 15; h2 = Math.imul(h2, 0x2c1b3c6d);
+  h2 ^= h2 >>> 12; h2 = Math.imul(h2, 0x297a2d39);
+  h2 ^= h2 >>> 15;
+
+  // 32 bits from h1 + 21 bits from h2 = 53 bits.
+  return (h2 & 0x1fffff) * 4294967296 + (h1 >>> 0);
 }
 
 function isWon(s: SolverState): boolean {
-  return s.foundations.every(p => p.length === 13);
+  const f = s.foundations;
+  return f[0] === 13 && f[1] === 13 && f[2] === 13 && f[3] === 13;
 }
 
+// Can plain card `card` (0..51) sit on top of tableau pile `pile`?
+function canPlaceOnTableauCode(card: number, pile: readonly number[]): boolean {
+  if (pile.length === 0) return CARD_RANK[card] === 13; // only Kings on empty columns
+  const top = pile[pile.length - 1];
+  if (!(top & FACE_UP)) return false;
+  const t = top & CARD_MASK;
+  return CARD_RED[card] !== CARD_RED[t] && CARD_RANK[card] === CARD_RANK[t] - 1;
+}
+
+// Foundation slot that would accept plain card `card`, or -1.
+function foundationSlotFor(card: number, foundations: readonly number[]): number {
+  const slot = SUIT_SLOT[CARD_SUIT[card]];
+  return CARD_RANK[card] === foundations[slot] + 1 ? slot : -1;
+}
+
+const Kind = {
+  Draw: 0,
+  WasteToFoundation: 1,
+  TableauToFoundation: 2,
+  WasteToTableau: 3,
+  TableauToTableau: 4,
+} as const;
+type Kind = (typeof Kind)[keyof typeof Kind];
+
 interface Move {
-  source: MoveSource | { area: 'draw' };
-  target: MoveTarget;
+  kind: Kind;
+  from: number;   // source tableau pile (tableau sources)
+  index: number;  // first card moved within the source pile (tableau->tableau)
+  to: number;     // target tableau pile or foundation slot
   priority: number;
 }
 
 function generateMoves(s: SolverState): Move[] {
   const moves: Move[] = [];
-
-  // Helper: top face-up card of a pile
-  const topWaste = s.waste.length > 0 ? s.waste[s.waste.length - 1] : null;
+  const { tableau, foundations, stock, waste } = s;
+  const topWaste = waste.length > 0 ? waste[waste.length - 1] : -1;
 
   // 1. Move to foundation (highest priority)
-  const trySendToFoundation = (src: MoveSource, card: Card) => {
-    for (let fi = 0; fi < 4; fi++) {
-      if (canPlaceOnFoundation(card, s.foundations[fi], fi)) {
-        moves.push({ source: src, target: { area: 'foundation', pileIndex: fi }, priority: 100 });
-        break;
-      }
-    }
-  };
-
-  if (topWaste) trySendToFoundation({ area: 'waste', pileIndex: 0 }, topWaste);
+  if (topWaste >= 0) {
+    const slot = foundationSlotFor(topWaste, foundations);
+    if (slot >= 0) moves.push({ kind: Kind.WasteToFoundation, from: 0, index: 0, to: slot, priority: 100 });
+  }
   for (let i = 0; i < 7; i++) {
-    const pile = s.tableau[i];
+    const pile = tableau[i];
     if (pile.length === 0) continue;
     const top = pile[pile.length - 1];
-    if (top.faceUp) trySendToFoundation({ area: 'tableau', pileIndex: i, cardIndex: pile.length - 1 }, top);
+    if (!(top & FACE_UP)) continue;
+    const slot = foundationSlotFor(top & CARD_MASK, foundations);
+    if (slot >= 0) moves.push({ kind: Kind.TableauToFoundation, from: i, index: pile.length - 1, to: slot, priority: 100 });
   }
 
   // 2. Draw from stock
-  if (s.stock.length > 0 || s.waste.length > 0) {
-    moves.push({ source: { area: 'draw' }, target: { area: 'tableau', pileIndex: 0 }, priority: 10 });
+  if (stock.length > 0 || waste.length > 0) {
+    moves.push({ kind: Kind.Draw, from: 0, index: 0, to: 0, priority: 10 });
   }
 
   // 3. Tableau to tableau (face-up stacks)
   for (let si = 0; si < 7; si++) {
-    const srcPile = s.tableau[si];
-    const firstFaceUp = srcPile.findIndex(c => c.faceUp);
+    const srcPile = tableau[si];
+    let firstFaceUp = -1;
+    for (let i = 0; i < srcPile.length; i++) {
+      if (srcPile[i] & FACE_UP) { firstFaceUp = i; break; }
+    }
     if (firstFaceUp === -1) continue;
 
     for (let ci = firstFaceUp; ci < srcPile.length; ci++) {
-      const card = srcPile[ci];
+      const card = srcPile[ci] & CARD_MASK;
       for (let ti = 0; ti < 7; ti++) {
         if (ti === si) continue;
-        if (canPlaceOnTableau(card, s.tableau[ti])) {
+        const target = tableau[ti];
+        if (canPlaceOnTableauCode(card, target)) {
           // Prioritise moves that reveal a face-down card
           const revealsCard = ci === firstFaceUp && firstFaceUp > 0;
           // Deprioritise moving a King to another empty column (wasteful)
-          const kingToEmpty = card.rank === 13 && s.tableau[ti].length === 0 && srcPile.filter(c => c.faceUp).length === srcPile.length;
+          const kingToEmpty = CARD_RANK[card] === 13 && target.length === 0 && firstFaceUp === 0;
           const priority = revealsCard ? 80 : kingToEmpty ? 5 : 40;
-          moves.push({ source: { area: 'tableau', pileIndex: si, cardIndex: ci }, target: { area: 'tableau', pileIndex: ti }, priority });
+          moves.push({ kind: Kind.TableauToTableau, from: si, index: ci, to: ti, priority });
         }
       }
     }
   }
 
   // 4. Waste to tableau
-  if (topWaste) {
+  if (topWaste >= 0) {
     for (let ti = 0; ti < 7; ti++) {
-      if (canPlaceOnTableau(topWaste, s.tableau[ti])) {
-        moves.push({ source: { area: 'waste', pileIndex: 0 }, target: { area: 'tableau', pileIndex: ti }, priority: 30 });
+      if (canPlaceOnTableauCode(topWaste, tableau[ti])) {
+        moves.push({ kind: Kind.WasteToTableau, from: 0, index: 0, to: ti, priority: 30 });
       }
     }
   }
 
-  // Sort by priority descending
+  // Sort by priority descending (stable, so generation order breaks ties).
+  // Any weights work here; adding a heuristic needs no other change.
   moves.sort((a, b) => b.priority - a.priority);
   return moves;
 }
 
-function applyMoveToSolver(s: SolverState, move: Move): SolverState | null {
-  const ns = cloneState(s);
+// Moves come from generateMoves on the same state, so they are always legal.
+function applyMoveToSolver(s: SolverState, move: Move): SolverState {
+  const { tableau, foundations, stock, waste, drawCount } = s;
+  const { from, to, index } = move;
 
-  // Special: draw from stock
-  if (move.source.area === 'draw') {
-    if (ns.stock.length === 0) {
-      if (ns.waste.length === 0) return null;
-      ns.stock = [...ns.waste].reverse().map(c => ({ ...c, faceUp: false }));
-      ns.waste = [];
-    } else {
-      const count = Math.min(ns.drawCount, ns.stock.length);
-      const drawn = ns.stock.splice(ns.stock.length - count, count).reverse().map(c => ({ ...c, faceUp: true }));
-      ns.waste.push(...drawn);
+  switch (move.kind) {
+    case Kind.Draw: {
+      if (stock.length === 0) {
+        // Recycle the waste back into the stock, face-down.
+        return { tableau, foundations, stock: waste.slice().reverse(), waste: EMPTY, drawCount };
+      }
+      const count = Math.min(drawCount, stock.length);
+      const keep = stock.length - count;
+      return {
+        tableau,
+        foundations,
+        stock: stock.slice(0, keep),
+        waste: waste.concat(stock.slice(keep).reverse()),
+        drawCount,
+      };
     }
-    return ns;
-  }
 
-  let cards: Card[];
-
-  if (move.source.area === 'waste') {
-    if (ns.waste.length === 0) return null;
-    cards = [ns.waste.pop()!];
-  } else if (move.source.area === 'tableau') {
-    const pile = ns.tableau[move.source.pileIndex];
-    const idx = move.source.cardIndex ?? pile.length - 1;
-    cards = pile.splice(idx);
-    // Flip newly exposed card
-    if (pile.length > 0 && !pile[pile.length - 1].faceUp) {
-      pile[pile.length - 1].faceUp = true;
+    case Kind.WasteToFoundation: {
+      const f = foundations.slice();
+      f[to]++;
+      return { tableau, foundations: f, stock, waste: waste.slice(0, -1), drawCount };
     }
-  } else {
-    return null;
-  }
 
-  if (move.target.area === 'foundation') {
-    if (cards.length !== 1) return null;
-    if (!canPlaceOnFoundation(cards[0], ns.foundations[move.target.pileIndex], move.target.pileIndex)) return null;
-    ns.foundations[move.target.pileIndex].push(cards[0]);
-  } else {
-    if (!canPlaceOnTableau(cards[0], ns.tableau[move.target.pileIndex])) return null;
-    ns.tableau[move.target.pileIndex].push(...cards);
-  }
+    case Kind.WasteToTableau: {
+      const t = tableau.slice();
+      t[to] = t[to].concat(waste[waste.length - 1] | FACE_UP);
+      return { tableau: t, foundations, stock, waste: waste.slice(0, -1), drawCount };
+    }
 
-  return ns;
+    case Kind.TableauToFoundation: {
+      const f = foundations.slice();
+      f[to]++;
+      const t = tableau.slice();
+      t[from] = revealTop(tableau[from].slice(0, index));
+      return { tableau: t, foundations: f, stock, waste, drawCount };
+    }
+
+    case Kind.TableauToTableau: {
+      const src = tableau[from];
+      const t = tableau.slice();
+      t[from] = revealTop(src.slice(0, index));
+      t[to] = tableau[to].concat(src.slice(index));
+      return { tableau: t, foundations, stock, waste, drawCount };
+    }
+  }
+}
+
+// Flip the newly exposed card face-up. `pile` must be a fresh copy.
+function revealTop(pile: number[]): number[] {
+  const last = pile.length - 1;
+  if (last >= 0) pile[last] |= FACE_UP;
+  return pile;
 }
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
@@ -222,14 +329,14 @@ export function isSolvable(gameState: GameState, maxMovesLimit: number = MAX_MOV
   };
 
   const initial: SolverState = {
-    tableau: gameState.tableau.map(p => p.map(c => ({ ...c }))),
-    foundations: gameState.foundations.map(p => p.map(c => ({ ...c }))),
-    stock: gameState.stock.map(c => ({ ...c })),
-    waste: gameState.waste.map(c => ({ ...c })),
+    tableau: gameState.tableau.map(p => p.map(c => encodeCard(c) | (c.faceUp ? FACE_UP : 0))),
+    foundations: gameState.foundations.map(p => p.length),
+    stock: gameState.stock.map(encodeCard),
+    waste: gameState.waste.map(encodeCard),
     drawCount: gameState.drawCount,
   };
 
-  const visited = new Set<string>();
+  const visited = new Set<number>();
   const stack: { state: SolverState; depth: number }[] = [{ state: initial, depth: 0 }];
   let totalMoves = 0;
 
@@ -238,7 +345,7 @@ export function isSolvable(gameState: GameState, maxMovesLimit: number = MAX_MOV
 
     if (isWon(state)) return finish('solvable', totalMoves, depth);
 
-    const key = stateKey(state);
+    const key = stateHash(state);
     if (visited.has(key)) continue;
     visited.add(key);
 
@@ -247,10 +354,7 @@ export function isSolvable(gameState: GameState, maxMovesLimit: number = MAX_MOV
     const moves = generateMoves(state);
     // Push in reverse so highest priority is popped first
     for (let i = moves.length - 1; i >= 0; i--) {
-      const next = applyMoveToSolver(state, moves[i]);
-      if (next) {
-        stack.push({ state: next, depth: depth + 1 });
-      }
+      stack.push({ state: applyMoveToSolver(state, moves[i]), depth: depth + 1 });
     }
   }
 
