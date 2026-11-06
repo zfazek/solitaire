@@ -9,7 +9,8 @@
     "build:android": "tsc -b && VITE_DONATE=0 vite build",
     "sync:android": "npm run build:android && cap sync android",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "solve": "npx tsx solve.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",

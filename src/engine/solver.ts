@@ -182,7 +182,7 @@ function applyMoveToSolver(s: SolverState, move: Move): SolverState | null {
   return ns;
 }
 
-export function isSolvable(gameState: GameState): SolveResult {
+export function isSolvable(gameState: GameState, maxMovesLimit: number = MAX_MOVES): SolveResult {
   const initial: SolverState = {
     tableau: gameState.tableau.map(p => p.map(c => ({ ...c }))),
     foundations: gameState.foundations.map(p => p.map(c => ({ ...c }))),
@@ -195,7 +195,7 @@ export function isSolvable(gameState: GameState): SolveResult {
   const stack: { state: SolverState; depth: number }[] = [{ state: initial, depth: 0 }];
   let totalMoves = 0;
 
-  while (stack.length > 0 && totalMoves < MAX_MOVES) {
+  while (stack.length > 0 && totalMoves < maxMovesLimit) {
     const { state, depth } = stack.pop()!;
 
     if (isWon(state)) return 'solvable';
