@@ -1,0 +1,80 @@
+name: solitaire
+description: OSolitaire - A React-based Solitaire game with Capacitor support for Android
+type: web-application
+language: typescript
+
+# Project structure
+structure:
+  source_dir: src
+  build:
+    output_dir: dist
+    commands:
+      - npm run build
+      - npm run build:android
+  test:
+    commands:
+      - npm run lint
+
+# Key technologies
+technologies:
+  - react
+  - typescript
+  - vite
+  - capacitor
+  - oxlint
+
+# Development workflow
+workflow:
+  dev_server:
+    command: npm run dev
+    port: 5173
+  build:
+    web: npm run build
+    android: npm run build:android
+  sync_android: npm run sync:android
+  lint: npm run lint
+  preview: npm run preview
+
+# Build configuration
+build:
+  config_files:
+    - vite.config.ts
+    - tsconfig.json
+    - tsconfig.app.json
+    - tsconfig.node.json
+    - capacitor.config.ts
+    - .oxlintrc.json
+
+# Important directories
+directories:
+  - src
+  - src/engine
+  - src/components
+  - src/hooks
+  - src/workers
+  - src/assets
+  - public
+  - store
+
+# Key entry points
+entry_points:
+  - src/main.tsx
+  - src/App.tsx
+
+# Testing strategy
+testing:
+  linting:
+    tool: oxlint
+    command: npm run lint
+    config: .oxlintrc.json
+
+# Deployment
+deployment:
+  platforms:
+    - web
+    - android
+  config:
+    android:
+      package: com.ongroa.solitaire
+      app_name: OSolitaire
+      web_dir: dist

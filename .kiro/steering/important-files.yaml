@@ -1,0 +1,202 @@
+# Important Files
+
+## Configuration Files
+
+### vite.config.ts
+**Purpose**: Vite bundler configuration
+
+**Key Features**:
+- React plugin enabled
+- Base path set to `./` for relative asset paths
+- Define build-time constant `__DONATE_ENABLED__` based on `VITE_DONATE` env var
+- Enables dead-code elimination for Android builds
+
+**Critical Lines**:
+```typescript
+const donateEnabled = process.env.VITE_DONATE !== '0'
+define: {
+  __DONATE_ENABLED__: JSON.stringify(donateEnabled),
+}
+```
+
+### capacitor.config.ts
+**Purpose**: Capacitor native mobile configuration
+
+**Key Properties**:
+- `appId`: `com.ongroa.solitaire`
+- `appName`: `OSolitaire`
+- `webDir`: `dist` (matches Vite output)
+
+### tsconfig.json
+**Purpose**: TypeScript project reference file
+
+**References**:
+- `./tsconfig.app.json` - App compilation settings
+- `./tsconfig.node.json` - Node environment settings
+
+### tsconfig.app.json
+**Purpose**: App-specific TypeScript settings
+
+### tsconfig.node.json
+**Purpose**: Node/CI TypeScript settings
+
+### .oxlintrc.json
+**Purpose**: Oxlint linter configuration
+
+**Currently**: Basic setup with React and Oxlint plugins
+
+**Recommendation** (from README):
+- Add `oxlint-tsgolint` for type-aware linting
+- Enable `typeAware: true` option
+- Add rules: `react/rules-of-hooks`, `react/only-export-components`
+
+### package.json
+**Purpose**: Project dependencies and scripts
+
+**Dependencies**:
+- `react@^19.2.8`
+- `react-dom@^19.2.8`
+- `@capacitor/core@^8.5.3`
+- `@capacitor/android@^8.5.3`
+
+**Dev Dependencies**:
+- `vite@^8.3.0`
+- `typescript@~6.0.2`
+- `@vitejs/plugin-react@^6.1.1`
+- `oxlint@^1.81.0`
+
+**Scripts**: See `build-commands.yaml`
+
+## Source Files
+
+### src/main.tsx
+**Purpose**: Application entry point
+
+**Key Lines**:
+```typescript
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
+```
+
+### src/App.tsx
+**Purpose**: Main UI component
+
+**Features**:
+- State hooks integration (`useGameState`, `useSelection`, `useCardFlip`)
+- Menu system with layout switching
+- Saved games panel
+- Sound toggle
+- Cheat mode (keyboard: Shift+C, touch: long-press title)
+- Draw mode selector (1 or 3 cards)
+- Seed input for reproducible deals
+- Donation button (web-only)
+- New game button
+- Undo/Restart buttons
+
+**Keyboard Shortcuts**:
+- `Shift+C`: Reveal all face-down cards (cheat)
+- Long-press title (mobile): Reveal all cards
+
+**Touch Gestures**:
+- Long-press on game title (~500ms): Reveal all tableau cards
+- Short tap on title: Cycle layout mode
+
+### src/engine/game.ts
+**Purpose**: Core game state and rule application
+
+**Key Exports**:
+- Game state structure
+- Move validation logic
+
+### src/engine/rules.ts
+**Purpose**: Solitaire rules enforcement
+
+**Key Functions**:
+- Valid move detection
+- Card placement rules
+
+### src/engine/deck.ts
+**Purpose**: Deck generation and seed handling
+
+**Key Functions**:
+- `seedToCode()`: Convert seed to base-36 code
+- `codeToSeed()`: Validate and convert code back to seed
+- `SEED_LENGTH`: 7 characters
+
+### src/engine/savedGames.ts
+**Purpose**: Saved game persistence
+
+**Key Functions**:
+- Get saved games list
+- Load saved game
+- Save current game
+- Delete saved game
+
+### src/engine/solver.ts
+**Purpose**: Auto-complete solver
+
+### src/engine/freecellSolver.ts
+**Purpose**: FreeCell-style solver implementation
+
+**Note**: Runs in Web Worker (see `src/workers/solver.worker.ts`)
+
+### src/hooks/useGameState.ts
+**Purpose**: Game state management hook
+
+**Key Exports**:
+- `gameState`: Current game state
+- `canUndo`: Undo availability
+- `canAutoCompleteNow`: Solver availability
+- `startNewGame()`: New deal
+- `startSeededGame()`: Deal with specific seed
+- `loadSavedGame()`: Restore saved game
+- `draw()`: Draw from stock
+- `move()`: Manual card move
+- `autoMove()`: Auto-complete move
+- `autoMoveOne()`: Single auto-move
+- `undo()`: Undo last move
+- `restart()`: Restart current deal
+
+### src/hooks/useSelection.ts
+**Purpose**: Card selection logic
+
+**Key Exports**:
+- `tapCard()`: Handle card tap
+- `tapPile()`: Handle pile tap
+
+### src/hooks/useCardFlip.ts
+**Purpose**: FLIP animation hook
+
+**Purpose**: Provides smooth card movement animations via DOM position diffing
+
+## Build Outputs
+
+### dist/
+**Purpose**: Production build output
+
+**Contents**:
+- Optimized JavaScript bundle
+- CSS styles
+- HTML entry point
+- Static assets copy
+
+**Note**: Android builds exclude donation-related code via `VITE_DONATE=0`
+
+## Configuration Dependencies
+
+```
+vite.config.ts ←─→ package.json (devDependencies)
+      ↓                  ↓
+  tsconfig.*      type-checking
+      ↓
+  src/**/*.tsx
+```
+
+## Critical Build-Time Flag
+
+`VITE_DONATE` environment variable controls donation link presence:
+- Set to `0`: Donation link removed from bundle (Android)
+- Any other value: Donation link included (web)

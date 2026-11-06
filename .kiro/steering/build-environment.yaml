@@ -1,0 +1,173 @@
+# Build Environment
+
+## Requirements
+
+### Node.js
+- Minimum version: Check `package.json` engines field (not specified, assume LTS)
+
+### npm
+- Used for dependency management and running scripts
+
+### TypeScript
+- Version: `~6.0.2` (from package.json)
+- Used for type checking and compilation
+
+## Build Dependencies
+
+From `package.json`:
+
+### Production Dependencies
+- `react@^19.2.8` - UI framework
+- `react-dom@^19.2.8` - DOM rendering
+- `@capacitor/core@^8.5.3` - Capacitor runtime
+- `@capacitor/android@^8.5.3` - Android platform
+
+### Development Dependencies
+- `vite@^8.3.0` - Build tool and dev server
+- `typescript@~6.0.2` - Type system
+- `@vitejs/plugin-react@^6.1.1` - React plugin for Vite
+- `oxlint@^1.81.0` - Linter
+- `@types/node@^24.19.2` - Node types
+- `@types/react@^19.2.18` - React types
+- `@types/react-dom@^19.2.7` - React DOM types
+
+## Environment Variables
+
+### VITE_DONATE
+**Purpose**: Control donation link presence
+
+**Values**:
+- Not set or any value except `0`: Donation enabled (web builds)
+- Set to `0`: Donation disabled (Android builds)
+
+**Effect**:
+- `VITE_DONATE=0` → `__DONATE_ENABLED__` becomes `"false"` → code removed via dead-code elimination
+- `VITE_DONATE=1` (or unset) → `__DONATE_ENABLED__` becomes `"true"` → donation code included
+
+**Usage**:
+```bash
+# Web build (donation enabled)
+npm run build
+
+# Android build (donation disabled)
+VITE_DONATE=0 npm run build:android
+# or
+npm run build:android
+```
+
+## Build Tools
+
+### Vite
+**Configuration**: `vite.config.ts`
+
+**Features**:
+- React plugin for JSX/TSX
+- Dev server with HMR
+- Production build with minification
+- Define plugin for build-time constants
+
+**Key Config**:
+```typescript
+base: './'  // Relative paths for capacitor
+define: {
+  __DONATE_ENABLED__: JSON.stringify(donateEnabled)
+}
+```
+
+### TypeScript
+**Configuration**: `tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`
+
+**Features**:
+- Type checking
+- ES module output
+- JSX support for React
+
+### Oxlint
+**Configuration**: `.oxlintrc.json`
+
+**Features**:
+- Fast Rust-based linter
+- React and TypeScript support
+- Type-aware linting (opt-in via oxlint-tsgolint)
+
+## Android Build Dependencies
+
+### Capacitor CLI
+**Version**: `^8.5.3`
+
+**Commands**:
+- `cap sync android`: Sync web build to Android project
+
+### Android SDK
+**Note**: Must be installed separately for building native Android APK
+
+## Output Structure
+
+```
+dist/
+├── index.html          # Entry point
+├── assets/             # Bundled JS/CSS
+│   └── *.js
+│   └── *.css
+└── [static assets]     # Copied from public/
+```
+
+## Platform-Specific Builds
+
+### Web Build
+```bash
+npm run build
+```
+- Donation link included
+- Standard web optimization
+- Output: `dist/`
+
+### Android Build
+```bash
+npm run build:android
+```
+- `VITE_DONATE=0` set
+- Donation link removed via dead-code elimination
+- Output: `dist/` (same location, overwrites web build)
+
+## CI/CD Considerations
+
+1. **Node version**: Use LTS version for consistency
+2. **Dependencies**: Lockfile (`package-lock.json`) should be committed
+3. **Build environment**: Ensure `VITE_DONATE=0` for Android builds
+4. **Android SDK**: Must be available for `cap sync android`
+5. **Build artifacts**: `dist/` should not be committed (generated)
+
+## Development Environment
+
+### Running Dev Server
+```bash
+npm run dev
+```
+- Starts on port 5173 by default
+- HMR enabled
+- React Refresh supported
+
+### Type Checking
+```bash
+npx tsc --noEmit
+# or
+npx tsc -b
+```
+
+### Linting
+```bash
+npm run lint
+```
+
+## Docker Development (Optional)
+
+If using Docker:
+```dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+```

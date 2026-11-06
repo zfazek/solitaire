@@ -1,0 +1,119 @@
+# Common Tasks and Patterns
+
+## Adding a New Feature
+
+### 1. State Management
+If adding game state:
+- Add to `src/engine/types.ts`
+- Update `src/engine/game.ts` state structure
+- Add reducer/logic in `useGameState` hook
+
+### 2. UI Component
+1. Create component in `src/components/`
+2. Import in `src/App.tsx`
+3. Add props for callbacks (e.g., `onTapCard`, `onTapPile`)
+4. Style in `src/App.css`
+
+### 3. Game Logic
+1. Add function to appropriate engine file
+2. Export from `src/engine/index.ts` if needed
+3. Test with existing game state
+
+## Modifying Card Behavior
+
+### Card Data Structure
+Cards in the game use a simple structure with:
+- `suit`: Card suit (hearts, diamonds, clubs, spades)
+- `rank`: Card rank (1-13, Ace=1)
+- `faceUp`: Boolean visibility
+- `id`: Unique identifier
+
+### Where to Modify
+- Card creation: `src/engine/deck.ts`
+- Card validation: `src/engine/rules.ts`
+- Card rendering: `src/components/CardView.tsx`
+
+## Adding a New Layout Mode
+
+1. Update `src/engine/layout.ts`:
+   - Add layout mode constant
+   - Update `nextLayoutMode()` function
+   - Add CSS classes in `src/App.css`
+
+2. Update UI:
+   - Add menu option in `src/App.tsx`
+   - Add CSS rules for new layout
+
+## Modifying the Solver
+
+1. Core solver logic: `src/engine/solver.ts`
+2. FreeCell-specific: `src/engine/freecellSolver.ts`
+3. Worker wrapper: `src/workers/solver.worker.ts`
+4. Integration in `src/hooks/useGameState.ts`
+
+## Debugging
+
+### Common Debug Tasks
+
+**View cheat mode (reveal all cards)**:
+- Web: Hold Shift+C, or long-press title on mobile
+- Check `revealAll` state in App.tsx
+
+**Check current deal seed**:
+- Open menu → Copy current seed code
+- Use seed input to reproduce deal
+
+**Enable/disable sound**:
+- Toggle in menu or check `isSoundEnabled()` in `src/engine/sound.ts`
+
+**Test Android build**:
+```bash
+npm run build:android
+npm run sync:android
+```
+
+## Performance Optimization
+
+### FLIP Animation
+The game uses FLIP (First-Last-Invert-Play) for smooth card animations:
+- Implemented in `useCardFlip` hook
+- Uses DOM position diffing
+- Covers all move paths automatically
+
+### Web Workers
+Solver computation runs in worker thread:
+- Prevents UI blocking
+- See `src/workers/solver.worker.ts`
+
+### Build Optimization
+- Dead-code elimination via `VITE_DONATE=0` for Android
+- Vite minification in production builds
+
+## Testing Changes
+
+1. **Lint first**: `npm run lint`
+2. **Type check**: `npx tsc -b`
+3. **Test web**: `npm run dev` → verify in browser
+4. **Test build**: `npm run build`
+5. **Test Android**: `npm run build:android && npm run sync:android`
+
+## Common Pitfalls
+
+1. **Donation link in Android**: Never forget `VITE_DONATE=0` for Android builds
+2. **Seed format**: Must be 7-character base-36 (0-9, A-Z)
+3. **Layout CSS**: Add both layout mode classes and deck-swapped classes if needed
+4. **Worker messages**: Use proper message types when communicating with workers
+
+## Adding Keyboard Shortcuts
+
+1. Add event listener in `useEffect` hook in `App.tsx`
+2. Use `e.code` (not `e.key`) for layout-independent detection
+3. Handle both `keydown` and `keyup` for toggle behavior
+4. Consider `blur` event for cleanup (focus loss)
+
+## Modifying Saved Games
+
+1. `src/engine/savedGames.ts` manages localStorage operations
+2. Games keyed by unique ID (timestamp-based)
+3. Load/save uses game state serialization
+4. Check `activeId` in `useGameState` for current game

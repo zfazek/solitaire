@@ -1,0 +1,96 @@
+# Code Organization
+
+## src/ Directory Structure
+
+### engine/
+Core game logic and utilities.
+
+| File | Purpose |
+|------|---------|
+| `game.ts` | Main game state and rules engine |
+| `savedGames.ts` | Saved game management (localStorage) |
+| `solver.ts` | Auto-complete solver logic |
+| `deck.ts` | Deck generation and seed handling |
+| `types.ts` | TypeScript type definitions |
+| `layout.ts` | Table layout configuration and switching |
+| `shake.ts` | Haptic feedback (Android) |
+| `donate.ts` | Donation page opener |
+| `sound.ts` | Sound effects management |
+| `rules.ts` | Solitaire rules validation |
+| `freecellSolver.ts` | FreeCell solver implementation |
+| `index.ts` | Module exports |
+
+### components/
+React components for UI elements.
+
+| File | Purpose |
+|------|---------|
+| `TableauColumn.tsx` | Individual tableau column component with card stacking |
+| `FoundationPile.tsx` | Foundation pile components (top row) |
+| `StockWaste.tsx` | Stock and waste pile component |
+| `WinScreen.tsx` | Victory screen overlay |
+| `SavedGamesPanel.tsx` | Saved games management UI |
+| `CardView.tsx` | Individual card rendering |
+
+### hooks/
+Custom React hooks.
+
+| File | Purpose |
+|------|---------|
+| `useGameState.ts` | Main game state management (moves, undo, new game) |
+| `useSelection.ts` | Card selection and drag logic |
+| `useCardFlip.ts` | FLIP animation for card movements |
+
+### workers/
+Web Workers for background processing.
+
+| File | Purpose |
+|------|---------|
+| `solver.worker.ts` | Solver computation in separate thread |
+
+### assets/
+Static assets.
+
+| File | Purpose |
+|------|---------|
+| (directory) | Icons, images, and other static resources |
+
+### App.tsx
+Main application component that orchestrates:
+- Game state hooks integration
+- UI rendering (tableau, foundations, stock/waste)
+- Menu system (layout, saved games, sound, cheat, draw mode)
+- Seed input for reproducible deals
+- Keyboard shortcuts (Shift+C for cheat, etc.)
+- Touch gestures (long-press on title to reveal cards)
+- Donation link (web-only)
+
+### main.tsx
+Application entry point - renders App component to root div.
+
+## Build-Time Configuration Flow
+
+```
+Environment Variable (VITE_DONATE)
+         |
+         v
+vite.config.ts: define __DONATE_ENABLED__
+         |
+         v
+React: {__DONATE_ENABLED__ && <DonateButton />}
+         |
+         v
+Vite minifier: Dead-code elimination
+         |
+         v
+Android: Code completely removed
+Web: Button and functionality present
+```
+
+## Key Patterns
+
+1. **SEED-BASED DEALS**: Games can be reproduced using base-36 codes (SEED_LENGTH=7)
+2. **FLIP ANIMATIONS**: DOM position diffing for smooth card movements
+3. **WORKER THREADS**: Solver computation offloaded to prevent UI blocking
+4. **ENVIRONMENT-SPECIFIC BUILD**: Same codebase with conditional compilation via Vite defines
+5. **CAPACITOR INTEGRATION**: Native Android features via Capacitor API

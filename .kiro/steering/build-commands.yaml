@@ -1,0 +1,48 @@
+# Build Commands
+
+## Web Build
+- Command: `npm run build`
+- Description: Runs TypeScript compiler and Vite build for web deployment
+- Output: `dist/` directory with optimized web assets
+
+## Android Build
+- Command: `npm run build:android`
+- Description: Runs TypeScript compiler and Vite build with `VITE_DONATE=0` for Android
+- Output: `dist/` directory with Android-optimized build (no donation link)
+
+## Key Difference
+The Android build sets `VITE_DONATE=0` which disables the donation link via dead-code elimination to comply with Google Play policy.
+
+# Sync Commands
+
+## Android Sync
+- Command: `npm run sync:android`
+- Steps: Runs `build:android` then `cap sync android`
+- Purpose: Builds and synchronizes the Android Capacitor project
+
+# Development Commands
+
+## Dev Server
+- Command: `npm run dev`
+- Description: Starts Vite development server with HMR
+- Default Port: 5173
+
+## Preview
+- Command: `npm run preview`
+- Description: Previews the production build locally
+
+# Linting
+
+## Oxlint
+- Command: `npm run lint`
+- Tool: Oxlint
+- Configuration: `.oxlintrc.json`
+
+# Configuration Notes
+
+## VITE_DONATE Environment Variable
+- Not set or set to anything other than `0`: Donation link is enabled (web builds)
+- Set to `0`: Donation link is disabled (Android builds) - the code is completely removed from the bundle
+
+## Build-time Constants
+- `__DONATE_ENABLED__`: Stringified boolean determined at build time based on `VITE_DONATE` environment variable
