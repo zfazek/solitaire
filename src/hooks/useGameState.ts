@@ -262,13 +262,14 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
     ): Promise<GameState | null> => {
       let candidate = firstCandidate ?? newGame(drawCount);
       let reshuffles = 0;
+      const startTime = performance.now();
       for (;;) {
         const analysis = await validateDeal(candidate);
         if (isCancelled()) return null;
         const result = analysis.result;
         if (analysis.difficulty !== null && levels.includes(analysis.difficulty)) {
           console.log(
-            `New deal ${seedToCode(candidate.seed)} settled after ${reshuffles} reshuffle(s); difficulty=${analysis.difficulty} ` +
+            `New deal ${seedToCode(candidate.seed)} settled after ${reshuffles} reshuffle(s) in ${Math.round(performance.now() - startTime)}ms; difficulty=${analysis.difficulty} ` +
               `(explored=${analysis.statesExplored}, solution=${analysis.solutionLength}, ` +
               `deadEnds=${analysis.deadEndRatio.toFixed(2)})`,
           );
@@ -277,7 +278,7 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
         }
         if (reshuffles >= MAX_RESHUFFLE_ATTEMPTS) {
           console.log(
-            `New deal ${seedToCode(candidate.seed)} settled after ${reshuffles} reshuffle(s) ` +
+            `New deal ${seedToCode(candidate.seed)} settled after ${reshuffles} reshuffle(s) in ${Math.round(performance.now() - startTime)}ms ` +
               `(hit MAX_RESHUFFLE_ATTEMPTS=${MAX_RESHUFFLE_ATTEMPTS}, result='${result}')`,
           );
           rememberRating(candidate, analysis);
