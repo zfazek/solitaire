@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type { GameState, Card, MoveSource, MoveTarget } from '../engine/types';
 import { newGame, emptyGame, drawFromStock, applyMove, deepClone } from '../engine/game';
 import { canAutoComplete, getAutoMoveCard, canPlaceOnFoundation, canPlaceOnTableau, isMovableSequence, FOUNDATION_SUITS } from '../engine/rules';
@@ -11,10 +11,12 @@ import {
   newSavedGameId,
 } from '../engine/savedGames';
 import { playMove, playFoundation, playDraw, playWin } from '../engine/sound';
-import type { SolveResult } from '../engine/solver';
-import SolverWorker from '../workers/solver.worker?worker';
+import { seedToCode } from '../engine/deck';
+import type { Difficulty } from '../engine/solver';
+import { analyzeDeal, rememberRating } from '../workers/analyzeDeal';
 
-const MAX_RESHUFFLE_ATTEMPTS = 10;
+const MAX_RESHUFFLE_ATTEMPTS = 1000;
+const ALL_DIFFICULTIES: readonly Difficulty[] = ['easy', 'medium', 'hard'];
 
 type Action =
   | { type: 'NEW_GAME'; drawCount?: 1 | 3; seed?: number }
@@ -236,20 +238,10 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
     prevWon.current = state.current.won;
   }, [state.current.won]);
 
-  // Run the solver on a single candidate deal in a background Web Worker.
-  // Resolves with the tri-state SolveResult. A fresh worker per call keeps the
-  // protocol simple (one message in, one message out); the solver's budget is
-  // small (see MAX_MOVES) so each check is sub-second.
-  const validateDeal = useCallback((game: GameState): Promise<SolveResult> => {
-    return new Promise((resolve) => {
-      const worker = new SolverWorker();
-      worker.onmessage = (e: MessageEvent<SolveResult>) => {
-        worker.terminate();
-        resolve(e.data);
-      };
-      worker.postMessage(game);
-    });
-  }, []);
+  // Run the solver on a single candidate deal in a background Web Worker (see
+  // workers/analyzeDeal). The solver's budget is small (see MAX_MOVES) so each
+  // check is sub-second.
+  const validateDeal = analyzeDeal;
 
   // Find a deal we're willing to show the player, WITHOUT committing any
   // candidate to visible state. We generate candidates and validate them one
@@ -262,20 +254,33 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
   // up to MAX_RESHUFFLE_ATTEMPTS. If the cap is hit we return the last
   // candidate anyway so the game always starts.
   const findAcceptableDeal = useCallback(
-    async (drawCount: 1 | 3, firstCandidate?: GameState): Promise<GameState> => {
+    async (
+      drawCount: 1 | 3,
+      firstCandidate?: GameState,
+      levels: readonly Difficulty[] = ALL_DIFFICULTIES,
+      isCancelled: () => boolean = () => false,
+    ): Promise<GameState | null> => {
       let candidate = firstCandidate ?? newGame(drawCount);
       let reshuffles = 0;
       for (;;) {
-        const result = await validateDeal(candidate);
-        if (result === 'solvable') {
-          console.log(`New deal settled after ${reshuffles} reshuffle(s)`);
+        const analysis = await validateDeal(candidate);
+        if (isCancelled()) return null;
+        const result = analysis.result;
+        if (analysis.difficulty !== null && levels.includes(analysis.difficulty)) {
+          console.log(
+            `New deal ${seedToCode(candidate.seed)} settled after ${reshuffles} reshuffle(s); difficulty=${analysis.difficulty} ` +
+              `(explored=${analysis.statesExplored}, solution=${analysis.solutionLength}, ` +
+              `deadEnds=${analysis.deadEndRatio.toFixed(2)})`,
+          );
+          rememberRating(candidate, analysis);
           return candidate;
         }
         if (reshuffles >= MAX_RESHUFFLE_ATTEMPTS) {
           console.log(
-            `New deal settled after ${reshuffles} reshuffle(s) ` +
+            `New deal ${seedToCode(candidate.seed)} settled after ${reshuffles} reshuffle(s) ` +
               `(hit MAX_RESHUFFLE_ATTEMPTS=${MAX_RESHUFFLE_ATTEMPTS}, result='${result}')`,
           );
+          rememberRating(candidate, analysis);
           return candidate;
         }
         reshuffles++;
@@ -298,8 +303,8 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
 
     let cancelled = false;
     // Validate the already-live initial deal first; replace only if needed.
-    findAcceptableDeal(state.current.drawCount, state.current).then((game) => {
-      if (cancelled) return;
+    findAcceptableDeal(state.current.drawCount, state.current, ALL_DIFFICULTIES, () => cancelled).then((game) => {
+      if (cancelled || !game) return;
       if (game !== state.current) {
         dispatch({ type: 'COMMIT_NEW_GAME', game });
       }
@@ -308,16 +313,32 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const startNewGame = useCallback((drawCount?: 1 | 3) => {
+  // True while a user-requested new deal is being searched for.
+  const [generating, setGenerating] = useState(false);
+  // Bumped to invalidate any in-flight search (new request or cancel).
+  const searchToken = useRef(0);
+
+  const cancelNewGame = useCallback(() => {
+    searchToken.current++;
+    setGenerating(false);
+  }, []);
+
+  const startNewGame = useCallback((drawCount?: 1 | 3, levels: readonly Difficulty[] = ALL_DIFFICULTIES) => {
     // A user-initiated new deal begins a fresh reshuffle round. We pick an
-    // acceptable (solver-proven) deal OFF-SCREEN first, then commit it in a
-    // single dispatch — the player never sees rejected candidates, so there's
-    // no flicker. The MAX_RESHUFFLE_ATTEMPTS cap applies per new game round.
+    // acceptable (solver-proven, difficulty-matching) deal OFF-SCREEN first,
+    // then commit it in a single dispatch — the player never sees rejected
+    // candidates, so there's no flicker. The MAX_RESHUFFLE_ATTEMPTS cap
+    // applies per new game round.
     const dc = drawCount ?? stateRef.current.current.drawCount;
-    findAcceptableDeal(dc).then((game) => {
+    const token = ++searchToken.current;
+    setGenerating(true);
+    findAcceptableDeal(dc, undefined, levels, () => token !== searchToken.current).then((game) => {
+      if (token !== searchToken.current || !game) return; // superseded / cancelled
+      setGenerating(false);
       dispatch({ type: 'COMMIT_NEW_GAME', game });
     });
   }, [findAcceptableDeal]);
+
 
   // Deal a specific seed. The deal is reproduced exactly and is NOT subject to
   // the solvability reshuffle (explicit seeds skip the solver entirely).
@@ -440,6 +461,8 @@ export function useGameState(initialDrawCount: 1 | 3 = 1) {
     activeId: state.activeId,
     getSavedGames,
     startNewGame,
+    cancelNewGame,
+    generating,
     startSeededGame,
     loadSavedGame,
     deleteSavedGame,

@@ -893,6 +893,42 @@ body {
   margin: 0;
 }
 
+.rating {
+  font-weight: 600;
+}
+.rating-easy { color: #4ade80; }
+.rating-medium { color: #facc15; }
+.rating-hard { color: #f87171; }
+
+.newgame-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px 20px;
+}
+
+.newgame-hint {
+  margin: 0;
+  color: rgba(255,255,255,0.7);
+}
+
+.newgame-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+
+.newgame-option input {
+  width: 20px;
+  height: 20px;
+}
+
+.newgame-shuffle {
+  margin-top: 6px;
+}
+
 .saved-empty {
   padding: 28px 18px;
   text-align: center;

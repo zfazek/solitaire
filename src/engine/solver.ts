@@ -182,7 +182,45 @@ function applyMoveToSolver(s: SolverState, move: Move): SolverState | null {
   return ns;
 }
 
-export function isSolvable(gameState: GameState, maxMovesLimit: number = MAX_MOVES): SolveResult {
+export type Difficulty = 'easy' | 'medium' | 'hard';
+
+export interface SolveAnalysis {
+  result: SolveResult;
+  /** Distinct states the DFS expanded before finishing (search effort). */
+  statesExplored: number;
+  /** Length (in moves, draws included) of the winning line; null if not solved. */
+  solutionLength: number | null;
+  /**
+   * Fraction of explored states that were NOT on the winning line, i.e. how
+   * much the solver had to backtrack / wander. 0 = straight to the win,
+   * →1 = mostly dead ends. 1 when no solution was found.
+   */
+  deadEndRatio: number;
+  /** Coarse label derived from deadEndRatio. null unless result is 'solvable'. */
+  difficulty: Difficulty | null;
+}
+
+// Thresholds on deadEndRatio. The DFS move ordering is a decent "human-ish"
+// heuristic, so deals it solves with little backtracking are straightforward.
+const EASY_MAX_DEAD_END_RATIO = 0.3;
+const MEDIUM_MAX_DEAD_END_RATIO = 0.7;
+
+function classify(result: SolveResult, deadEndRatio: number): Difficulty | null {
+  // Difficulty is only meaningful for deals proven winnable.
+  if (result !== 'solvable') return null;
+  if (deadEndRatio <= EASY_MAX_DEAD_END_RATIO) return 'easy';
+  if (deadEndRatio <= MEDIUM_MAX_DEAD_END_RATIO) return 'medium';
+  return 'hard';
+}
+
+export function isSolvable(gameState: GameState, maxMovesLimit: number = MAX_MOVES): SolveAnalysis {
+  const finish = (result: SolveResult, statesExplored: number, solutionLength: number | null): SolveAnalysis => {
+    const deadEndRatio = solutionLength === null || statesExplored === 0
+      ? 1
+      : Math.max(0, (statesExplored - solutionLength) / statesExplored);
+    return { result, statesExplored, solutionLength, deadEndRatio, difficulty: classify(result, deadEndRatio) };
+  };
+
   const initial: SolverState = {
     tableau: gameState.tableau.map(p => p.map(c => ({ ...c }))),
     foundations: gameState.foundations.map(p => p.map(c => ({ ...c }))),
@@ -198,7 +236,7 @@ export function isSolvable(gameState: GameState, maxMovesLimit: number = MAX_MOV
   while (stack.length > 0 && totalMoves < maxMovesLimit) {
     const { state, depth } = stack.pop()!;
 
-    if (isWon(state)) return 'solvable';
+    if (isWon(state)) return finish('solvable', totalMoves, depth);
 
     const key = stateKey(state);
     if (visited.has(key)) continue;
@@ -219,5 +257,5 @@ export function isSolvable(gameState: GameState, maxMovesLimit: number = MAX_MOV
   // If the stack emptied, we exhausted every reachable state without a win:
   // the deal is provably unsolvable. If instead the budget ran out while
   // states remained to explore, we simply don't know.
-  return stack.length === 0 ? 'unsolvable' : 'unknown';
+  return finish(stack.length === 0 ? 'unsolvable' : 'unknown', totalMoves, null);
 }

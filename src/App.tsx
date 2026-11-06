@@ -7,6 +7,9 @@ import { FoundationPile } from './components/FoundationPile';
 import { StockWaste } from './components/StockWaste';
 import { WinScreen } from './components/WinScreen';
 import { SavedGamesPanel } from './components/SavedGamesPanel';
+import { NewGameDialog } from './components/NewGameDialog';
+import type { Difficulty } from './engine/solver';
+import { getDifficultyLevels, setDifficultyLevels } from './engine/difficultyLevels';
 import { isSoundEnabled, setSoundEnabled } from './engine/sound';
 import { getLayoutMode, setLayoutMode, nextLayoutMode, isGroupRight, isDeckSwapped } from './engine/layout';
 import { openDonatePage } from './engine/donate';
@@ -27,6 +30,8 @@ export default function App() {
     activeId,
     getSavedGames,
     startNewGame,
+    cancelNewGame,
+    generating,
     startSeededGame,
     loadSavedGame,
     deleteSavedGame,
@@ -40,6 +45,13 @@ export default function App() {
   } = useGameState(1);
 
   const [showSaved, setShowSaved] = useState(false);
+  const [showNewGame, setShowNewGame] = useState(false);
+  const [levels, setLevelsState] = useState<Difficulty[]>(() => getDifficultyLevels());
+  const setLevels = (next: Difficulty[]) => {
+    setLevelsState(next);
+    setDifficultyLevels(next);
+  };
+  const shuffleRequested = useRef(false);
   const [savedSnapshot, setSavedSnapshot] = useState(() => getSavedGames());
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
   const [layoutMode, setLayoutModeState] = useState(() => getLayoutMode());
@@ -128,6 +140,26 @@ export default function App() {
       setRevealAll(false);
       longPressFired.current = false;
     }
+  };
+
+  // Close the New Game dialog once a requested search has finished.
+  useEffect(() => {
+    if (shuffleRequested.current && !generating) {
+      shuffleRequested.current = false;
+      setShowNewGame(false);
+    }
+  }, [generating]);
+
+  const shuffle = () => {
+    shuffleRequested.current = true;
+    startNewGame(undefined, levels);
+  };
+
+  // Closing the dialog also abandons any search still in progress.
+  const closeNewGame = () => {
+    shuffleRequested.current = false;
+    cancelNewGame();
+    setShowNewGame(false);
   };
 
   const openSaved = () => {
@@ -293,13 +325,13 @@ export default function App() {
                   type="button"
                   className={`draw-switch-opt${gameState.drawCount === 1 ? ' is-on' : ''}`}
                   aria-pressed={gameState.drawCount === 1}
-                  onClick={() => { if (gameState.drawCount !== 1) startNewGame(1); setMenuOpen(false); }}
+                  onClick={() => { if (gameState.drawCount !== 1) startNewGame(1, levels); setMenuOpen(false); }}
                 >1</button>
                 <button
                   type="button"
                   className={`draw-switch-opt${gameState.drawCount === 3 ? ' is-on' : ''}`}
                   aria-pressed={gameState.drawCount === 3}
-                  onClick={() => { if (gameState.drawCount !== 3) startNewGame(3); setMenuOpen(false); }}
+                  onClick={() => { if (gameState.drawCount !== 3) startNewGame(3, levels); setMenuOpen(false); }}
                 >3</button>
               </div>
             </div>
@@ -361,7 +393,7 @@ export default function App() {
             <span className="btn-icon">☕</span><span className="btn-label"> Coffee</span>
           </button>
         )}
-        <button className="btn btn-primary" onClick={() => startNewGame()} aria-label="New game">
+        <button className="btn btn-primary" onClick={() => setShowNewGame(true)} aria-label="New game">
           <span className="btn-icon">✨</span><span className="btn-label"> New</span>
         </button>
         </div>
@@ -406,6 +438,16 @@ export default function App() {
 
       {gameState.won && (
         <WinScreen onOk={() => dismissWin()} />
+      )}
+
+      {showNewGame && (
+        <NewGameDialog
+          levels={levels}
+          onChange={setLevels}
+          generating={generating}
+          onShuffle={shuffle}
+          onClose={closeNewGame}
+        />
       )}
 
       {showSaved && (
