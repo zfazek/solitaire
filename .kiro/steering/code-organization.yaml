@@ -29,6 +29,8 @@ React components for UI elements.
 | `StockWaste.tsx` | Stock and waste pile component |
 | `WinScreen.tsx` | Victory screen overlay |
 | `SavedGamesPanel.tsx` | Saved games management UI |
+| `NewGameDialog.tsx` | New game difficulty picker dialog |
+| `ConfirmRestartDialog.tsx` | Confirmation popup shown before Restart discards the current game |
 | `CardView.tsx` | Individual card rendering |
 
 ### hooks/

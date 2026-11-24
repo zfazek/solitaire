@@ -7,6 +7,7 @@ import { FoundationPile } from './components/FoundationPile';
 import { StockWaste } from './components/StockWaste';
 import { WinScreen } from './components/WinScreen';
 import { SavedGamesPanel } from './components/SavedGamesPanel';
+import { ConfirmRestartDialog } from './components/ConfirmRestartDialog';
 import { NewGameDialog } from './components/NewGameDialog';
 import type { Difficulty } from './engine/solver';
 import { getDifficultyLevels, setDifficultyLevels } from './engine/difficultyLevels';
@@ -46,6 +47,7 @@ export default function App() {
 
   const [showSaved, setShowSaved] = useState(false);
   const [showNewGame, setShowNewGame] = useState(false);
+  const [confirmRestart, setConfirmRestart] = useState(false);
   const [levels, setLevelsState] = useState<Difficulty[]>(() => getDifficultyLevels());
   const setLevels = (next: Difficulty[]) => {
     setLevelsState(next);
@@ -270,7 +272,7 @@ export default function App() {
         <button className="btn" onClick={undo} disabled={!canUndo} aria-label="Undo last move">
           <span className="btn-icon">↩</span><span className="btn-label"> Undo</span>
         </button>
-        <button className="btn" onClick={restart} aria-label="Restart this game">
+        <button className="btn" onClick={() => setConfirmRestart(true)} aria-label="Restart this game">
           <span className="btn-icon">↺</span><span className="btn-label"> Restart</span>
         </button>
 
@@ -440,6 +442,15 @@ export default function App() {
         <WinScreen onOk={() => dismissWin()} />
       )}
 
+      {confirmRestart && (
+        <ConfirmRestartDialog
+          onConfirm={() => {
+            setConfirmRestart(false);
+            restart();
+          }}
+          onCancel={() => setConfirmRestart(false)}
+        />
+      )}
       {showNewGame && (
         <NewGameDialog
           levels={levels}
