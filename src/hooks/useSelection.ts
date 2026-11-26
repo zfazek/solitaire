@@ -1,8 +1,7 @@
 import { useCallback } from 'react';
-import type { Card, MoveSource, MoveTarget } from '../engine/types';
+import type { Card, MoveSource } from '../engine/types';
 
 export function useSelection(
-  _onMove: (source: MoveSource, target: MoveTarget) => boolean,
   onAutoMove: (source: MoveSource, cards?: Card[]) => boolean,
 ) {
   /**
@@ -15,8 +14,5 @@ export function useSelection(
     return onAutoMove(source, cards);
   }, [onAutoMove]);
 
-  /** Tap on a pile container — no manual placement, auto-move handles moves. */
-  const tapPile = useCallback((_target: MoveTarget) => {}, []);
-
-  return { tapCard, tapPile };
+  return { tapCard };
 }

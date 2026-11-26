@@ -1,5 +1,5 @@
 import { type FC } from 'react';
-import type { Card, MoveSource, MoveTarget } from '../engine/types';
+import type { Card, MoveSource } from '../engine/types';
 import { CardView } from './CardView';
 
 interface StockWasteProps {
@@ -7,7 +7,6 @@ interface StockWasteProps {
   waste: Card[];
   onDraw: () => void;
   onTapCard: (source: MoveSource, cards: Card[]) => boolean | void;
-  onTapPile: (target: MoveTarget) => void;
 }
 
 export const StockWaste: FC<StockWasteProps> = ({

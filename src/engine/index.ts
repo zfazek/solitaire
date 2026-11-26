@@ -4,3 +4,4 @@ export * from './rules';
 export * from './game';
 export * from './savedGames';
 export * from './sound';
+export * from './newGamePolicy';

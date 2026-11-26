@@ -11,8 +11,7 @@
 import { newGame } from './src/engine/game';
 import { isSolvable, type SolveResult } from './src/engine/solver';
 import { mulberry32, SEED_MAX, seedToCode } from './src/engine/deck';
-
-const MAX_RESHUFFLE_ATTEMPTS = 10; // keep in sync with useGameState.ts
+import { MAX_RESHUFFLE_ATTEMPTS } from './src/engine/newGamePolicy';
 
 const [dealsArg, budgetArg, drawArg, streakArg, rngArg] = process.argv.slice(2);
 const deals = Number(dealsArg ?? 2000);

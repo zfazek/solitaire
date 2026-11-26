@@ -1,12 +1,11 @@
 import { type FC } from 'react';
-import type { Card, MoveSource, MoveTarget } from '../engine/types';
+import type { Card, MoveSource } from '../engine/types';
 import { CardView } from './CardView';
 
 interface FoundationPileProps {
   pileIndex: number;
   cards: Card[];
   onTapCard: (source: MoveSource, cards: Card[]) => boolean | void;
-  onTapPile: (target: MoveTarget) => void;
 }
 
 const SUIT_PLACEHOLDERS = ['♠', '♥', '♦', '♣'];
@@ -16,20 +15,17 @@ export const FoundationPile: FC<FoundationPileProps> = ({
   pileIndex,
   cards,
   onTapCard,
-  onTapPile,
 }) => {
   const topCard = cards.length > 0 ? cards[cards.length - 1] : null;
   // The card directly beneath the top one. Rendered (static, non-interactive)
   // so that when the top card flies IN via the move animation, the slot isn't
   // momentarily empty — it shows the previous card until the new one lands.
   const underCard = cards.length > 1 ? cards[cards.length - 2] : null;
-  const target: MoveTarget = { area: 'foundation', pileIndex };
   const source: MoveSource = { area: 'foundation', pileIndex };
 
   return (
     <div
       className="foundation-pile pile-slot"
-      onClick={() => onTapPile(target)}
     >
       {!topCard && (
         <span

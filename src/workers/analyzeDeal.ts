@@ -61,12 +61,41 @@ export function rememberRating(game: GameState, analysis: SolveAnalysis): void {
  * New-game search analyses many throwaway candidates; only kept deals are
  * remembered (see rememberRating).
  */
+// Set once a worker error has been logged, so a broken worker (which would
+// fail on every call) doesn't spam the console.
+let warnedWorkerError = false;
+
 export function analyzeDeal(game: GameState): Promise<SolveAnalysis> {
   return new Promise((resolve) => {
+    // A worker that fails to load (e.g. blocked by a strict CSP in some
+    // WebViews, or a bundling regression) would otherwise never fire
+    // `onmessage`, leaving the promise — and the new-game search — pending
+    // forever on "Searching…". Degrade gracefully to 'unknown' so the caller
+    // treats the deal as unproven (and reshuffles) instead of hanging.
+    const fallback: SolveAnalysis = {
+      result: 'unknown',
+      statesExplored: 0,
+      solutionLength: null,
+      deadEndRatio: 1,
+      difficulty: null,
+    };
+
     const worker = new SolverWorker();
-    worker.onmessage = (e: MessageEvent<SolveAnalysis>) => {
+    let settled = false;
+    const settle = (analysis: SolveAnalysis) => {
+      if (settled) return;
+      settled = true;
       worker.terminate();
-      resolve(e.data);
+      resolve(analysis);
+    };
+
+    worker.onmessage = (e: MessageEvent<SolveAnalysis>) => settle(e.data);
+    worker.onerror = () => {
+      if (!warnedWorkerError) {
+        warnedWorkerError = true;
+        console.warn('Solitaire solver worker failed to load; treating deals as unproven.');
+      }
+      settle(fallback);
     };
     worker.postMessage(game);
   });

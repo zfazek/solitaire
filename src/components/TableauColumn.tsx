@@ -1,5 +1,5 @@
 import { type FC } from 'react';
-import type { Card, MoveSource, MoveTarget } from '../engine/types';
+import type { Card, MoveSource } from '../engine/types';
 import { RANK_LABELS, SUIT_SYMBOLS, isRed } from '../engine/deck';
 import { shakeElement } from '../engine/shake';
 
@@ -7,7 +7,6 @@ interface TableauColumnProps {
   pileIndex: number;
   cards: Card[];
   onTapCard: (source: MoveSource, cards: Card[]) => boolean | void;
-  onTapPile: (target: MoveTarget) => void;
   revealAll?: boolean;
 }
 
@@ -21,7 +20,6 @@ export const TableauColumn: FC<TableauColumnProps> = ({
   pileIndex,
   cards,
   onTapCard,
-  onTapPile,
   revealAll = false,
 }) => {
   return (
@@ -35,7 +33,6 @@ export const TableauColumn: FC<TableauColumnProps> = ({
         alignItems: 'flex-start',
         overflow: 'visible',
       }}
-      onClick={() => onTapPile({ area: 'tableau', pileIndex })}
     >
       {cards.length === 0 && (
         <span className="pile-placeholder">K</span>

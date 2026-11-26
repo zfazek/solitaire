@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameState } from './hooks/useGameState';
 import { useSelection } from './hooks/useSelection';
 import { useCardFlip } from './hooks/useCardFlip';
@@ -16,7 +16,6 @@ import { getLayoutMode, setLayoutMode, nextLayoutMode, isGroupRight, isDeckSwapp
 import { openDonatePage } from './engine/donate';
 import { seedToCode, codeToSeed, SEED_LENGTH } from './engine/deck';
 import { Capacitor } from '@capacitor/core';
-import type { MoveSource, MoveTarget } from './engine/types';
 import './App.css';
 
 // True when running inside the native Android app (not a web browser). Used to
@@ -38,7 +37,6 @@ export default function App() {
     deleteSavedGame,
     restart,
     draw,
-    move,
     autoMove,
     autoMoveOne,
     undo,
@@ -67,7 +65,7 @@ export default function App() {
   const longPressFired = useRef(false);
   const pressStart = useRef<{ x: number; y: number } | null>(null);
 
-  const { tapCard, tapPile } = useSelection(move, autoMove);
+  const { tapCard } = useSelection(autoMove);
 
   // FLIP travel animation: glides cards from their old pile to their new one
   // after every state change. Driven by DOM position diffing, so it covers all
@@ -185,15 +183,18 @@ export default function App() {
     }
   };
 
+  // Parse the seed input once per change; reused by the validity check, the Go
+  // button's disabled state, and dealSeed.
+  const parsedSeed = useMemo(() => codeToSeed(seedInput), [seedInput]);
+
   const dealSeed = () => {
-    const seed = codeToSeed(seedInput);
-    if (seed === null) return; // invalid — the input shows an error state
-    startSeededGame(seed, gameState.drawCount);
+    if (parsedSeed === null) return; // invalid — the input shows an error state
+    startSeededGame(parsedSeed, gameState.drawCount);
     setSeedInput('');
     setMenuOpen(false);
   };
 
-  const seedInputValid = seedInput === '' || codeToSeed(seedInput) !== null;
+  const seedInputValid = seedInput === '' || parsedSeed !== null;
 
   // Keep the seed field to legal deal-code characters only. A deal code is
   // base-36 (0-9, A-Z), so we uppercase and strip anything else as the user
@@ -242,14 +243,6 @@ export default function App() {
     document.addEventListener('pointerdown', onDocPointer);
     return () => document.removeEventListener('pointerdown', onDocPointer);
   }, [menuOpen]);
-
-  const handleTapCard = (source: MoveSource, cards: typeof gameState.waste) => {
-    return tapCard(source, cards);
-  };
-
-  const handleTapPile = (target: MoveTarget) => {
-    tapPile(target);
-  };
 
   return (
     <div className="app">
@@ -372,7 +365,7 @@ export default function App() {
                 <button
                   type="submit"
                   className="btn seed-go"
-                  disabled={codeToSeed(seedInput) === null}
+                  disabled={parsedSeed === null}
                   aria-label="Deal this code"
                 >Go</button>
               </form>
@@ -407,8 +400,7 @@ export default function App() {
             stock={gameState.stock}
             waste={gameState.waste}
             onDraw={draw}
-            onTapCard={handleTapCard}
-            onTapPile={handleTapPile}
+            onTapCard={tapCard}
           />
           <div className="top-row-gap" />
           <div className="foundations">
@@ -417,8 +409,7 @@ export default function App() {
                 key={i}
                 pileIndex={i}
                 cards={pile}
-                onTapCard={handleTapCard}
-                onTapPile={handleTapPile}
+                onTapCard={tapCard}
               />
             ))}
           </div>
@@ -430,8 +421,7 @@ export default function App() {
               key={i}
               pileIndex={i}
               cards={pile}
-              onTapCard={handleTapCard}
-              onTapPile={handleTapPile}
+              onTapCard={tapCard}
               revealAll={revealAll}
             />
           ))}

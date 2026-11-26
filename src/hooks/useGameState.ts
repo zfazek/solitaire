@@ -14,8 +14,8 @@ import { playMove, playFoundation, playDraw, playWin } from '../engine/sound';
 import { seedToCode } from '../engine/deck';
 import type { Difficulty } from '../engine/solver';
 import { analyzeDeal, rememberRating } from '../workers/analyzeDeal';
+import { MAX_RESHUFFLE_ATTEMPTS } from '../engine/newGamePolicy';
 
-const MAX_RESHUFFLE_ATTEMPTS = 1000;
 const ALL_DIFFICULTIES: readonly Difficulty[] = ['easy', 'medium', 'hard'];
 
 type Action =

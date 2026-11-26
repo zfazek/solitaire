@@ -8,14 +8,6 @@ export interface Card {
   id: string; // e.g. "hearts-1"
 }
 
-export type PileType = 'tableau' | 'foundation' | 'stock' | 'waste';
-
-export interface Pile {
-  type: PileType;
-  index: number; // 0-6 for tableau, 0-3 for foundation, 0 for stock/waste
-  cards: Card[];
-}
-
 export interface GameState {
   tableau: Card[][];   // 7 columns
   foundations: Card[][]; // 4 piles
